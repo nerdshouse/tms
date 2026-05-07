@@ -75,3 +75,28 @@ export async function sendStatusChangedEmail(params: {
     `,
   });
 }
+
+export async function sendTeamInviteEmail(params: {
+  name: string;
+  email: string;
+  role: string;
+}) {
+  const loginUrl = `${APP_URL}/login`;
+
+  await resend.emails.send({
+    from: FROM,
+    to: params.email,
+    subject: `You've been added to the Nerdshouse team as ${params.role}`,
+    html: `
+      <div style="font-family: Inter, sans-serif; max-width: 560px; color: #1a1a1a;">
+        <h2 style="margin-bottom: 4px;">Welcome to Nerdshouse Portal</h2>
+        <p style="color: #6b7280; margin-top: 0;">Hi ${params.name},</p>
+        <p style="font-size: 14px;">You've been added to the Nerdshouse team as <strong>${params.role}</strong>. Sign in with your email to get started.</p>
+        <a href="${loginUrl}" style="display: inline-block; background: #4a4fe0; color: white; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 500;">
+          Sign In →
+        </a>
+        <p style="font-size: 12px; color: #9ca3af; margin-top: 24px;">Nerdshouse Technologies LLP</p>
+      </div>
+    `,
+  });
+}

@@ -55,3 +55,32 @@ clean, light background.
 - On ticket created: email to Nerdshouse admin team
 - On status updated: email to client
 - Use Resend for email delivery
+
+## New tables (add to schema)
+- projects: id, name, client_id, color (hex), created_at
+- team_members: id, name, email, role (Admin/Developer/Designer/QA),
+  avatar_initials, status (active/inactive), created_at
+
+## New screens to build
+11. Admin: Clients page — card grid, active/inactive badge, projects per
+    client, ticket count, "+ Project" button per card
+12. Admin: Client detail page — client info, project list (add/remove),
+    recent tickets scoped to that client
+13. Admin: Team page — member table (name, role, email, open tickets),
+    workload bar chart, remove member, invite via email
+14. Admin: Add client modal — name, company, email, status
+15. Admin: Add team member modal — name, email, role (sends invite email
+    via Resend)
+16. Admin: Add project modal — name, color picker, linked to client_id
+17. Update: New request form — Project dropdown (scoped to client's
+    projects, required field)
+18. Update: Ticket detail — Assignee dropdown (team members), shows
+    assigned member name + initials
+19. Update: Issue table — add Project column with colour dot
+20. Update: Sidebar admin — Projects section listing all projects with
+    colour dot and ticket count
+
+## RLS additions
+- projects: admin sees all, clients see only their own
+- team_members: admin only (clients cannot see team data)
+- tickets: add project_id foreign key, update RLS accordingly
