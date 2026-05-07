@@ -7,12 +7,13 @@ import { ChevronLeft, Loader2, Send } from "lucide-react";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
 import { formatIST, formatISTShort } from "@/lib/utils";
-import type { Ticket, TicketUpdate, Client, Status } from "@/types";
+import type { Ticket, TicketUpdate, Client, Status, TeamMember } from "@/types";
 
 interface TicketDetailProps {
   ticket: Ticket;
   updates: TicketUpdate[];
   currentClient: Client;
+  teamMembers: TeamMember[];
 }
 
 const STATUS_OPTIONS: { value: Status; label: string }[] = [
@@ -22,10 +23,11 @@ const STATUS_OPTIONS: { value: Status; label: string }[] = [
   { value: "done",        label: "●  Done" },
 ];
 
-export default function TicketDetail({ ticket, updates, currentClient }: TicketDetailProps) {
+export default function TicketDetail({ ticket, updates, currentClient, teamMembers }: TicketDetailProps) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [newStatus, setNewStatus] = useState<Status>(ticket.status);
+  const [newAssigneeId, setNewAssigneeId] = useState<string>(ticket.assignee_id ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [localUpdates, setLocalUpdates] = useState(updates);
@@ -36,7 +38,6 @@ export default function TicketDetail({ ticket, updates, currentClient }: TicketD
     if (!message.trim()) return;
     setSubmitting(true);
     setError("");
-
     try {
       const res = await fetch(`/api/tickets/${ticket.id}/updates`, {
         method: "POST",
@@ -54,20 +55,28 @@ export default function TicketDetail({ ticket, updates, currentClient }: TicketD
     }
   }
 
-  async function handleStatusUpdate() {
-    if (newStatus === localTicket.status) return;
+  async function handleAdminUpdate() {
+    if (newStatus === localTicket.status && newAssigneeId === (localTicket.assignee_id ?? "")) return;
     setSubmitting(true);
     setError("");
-
     try {
       const res = await fetch(`/api/tickets/${ticket.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({
+          status: newStatus,
+          assignee_id: newAssigneeId || null,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to update status");
-      setLocalTicket((t) => ({ ...t, status: newStatus }));
+      if (!res.ok) throw new Error(data.error ?? "Failed to update ticket");
+      const assignee = teamMembers.find((m) => m.id === newAssigneeId);
+      setLocalTicket((t) => ({
+        ...t,
+        status: newStatus,
+        assignee_id: newAssigneeId || null,
+        team_members: assignee ? { name: assignee.name, avatar_initials: assignee.avatar_initials } : undefined,
+      }));
       router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -78,48 +87,47 @@ export default function TicketDetail({ ticket, updates, currentClient }: TicketD
 
   return (
     <div className="p-6">
-      {/* Back */}
       <Link href="/" className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-foreground mb-5 transition-colors">
         <ChevronLeft size={14} />
         Back to requests
       </Link>
 
       <div className="flex gap-6">
-        {/* Main content */}
+        {/* Main */}
         <div className="flex-1 min-w-0">
           {/* Ticket header */}
           <div className="bg-card border border-border rounded-xl p-5 mb-4">
             <div className="flex items-start gap-3 mb-3">
               <div className="flex-1 min-w-0">
-                <h1 className="text-[16px] font-semibold text-foreground leading-snug">
-                  {localTicket.title}
-                </h1>
-                <p className="text-[11px] text-muted mt-1 font-mono">#{ticket.id.slice(0, 8)}</p>
+                <h1 className="text-[16px] font-semibold text-foreground leading-snug">{localTicket.title}</h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-[11px] text-muted font-mono">#{ticket.id.slice(0, 8)}</p>
+                  {localTicket.projects && (
+                    <>
+                      <span className="text-muted text-[11px]">·</span>
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: localTicket.projects.color }} />
+                      <span className="text-[11px] text-muted">{localTicket.projects.name}</span>
+                    </>
+                  )}
+                </div>
               </div>
               <StatusIcon status={localTicket.status} showLabel />
             </div>
-            <p className="text-[13px] text-muted leading-relaxed whitespace-pre-wrap">
-              {localTicket.description}
-            </p>
+            <p className="text-[13px] text-muted leading-relaxed whitespace-pre-wrap">{localTicket.description}</p>
           </div>
 
-          {/* Activity thread */}
+          {/* Activity */}
           <div className="bg-card border border-border rounded-xl p-5">
             <h2 className="text-[13px] font-semibold text-foreground mb-4">Activity</h2>
-
             {localUpdates.length === 0 ? (
               <p className="text-[13px] text-muted text-center py-6">No activity yet.</p>
             ) : (
               <div className="space-y-4">
                 {localUpdates.map((u) => (
                   <div key={u.id} className="flex gap-3">
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-semibold ${
-                        u.author_type === "team"
-                          ? "bg-accent/15 text-accent"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-semibold ${
+                      u.author_type === "team" ? "bg-accent/15 text-accent" : "bg-gray-100 text-gray-600"
+                    }`}>
                       {u.author_name[0]?.toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -139,7 +147,7 @@ export default function TicketDetail({ ticket, updates, currentClient }: TicketD
               </div>
             )}
 
-            {/* Reply box */}
+            {/* Reply */}
             <form onSubmit={handleReply} className="mt-5 pt-4 border-t border-border">
               <textarea
                 value={message}
@@ -148,9 +156,7 @@ export default function TicketDetail({ ticket, updates, currentClient }: TicketD
                 rows={3}
                 className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition resize-none mb-3"
               />
-              {error && (
-                <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">{error}</p>
-              )}
+              {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">{error}</p>}
               <button
                 type="submit"
                 disabled={submitting || !message.trim()}
@@ -184,11 +190,37 @@ export default function TicketDetail({ ticket, updates, currentClient }: TicketD
                 <dt className="text-muted text-[11px] mb-0.5">Module</dt>
                 <dd className="text-foreground">{localTicket.module || "—"}</dd>
               </div>
-              {currentClient.is_admin && (
+              {localTicket.projects && (
                 <div>
-                  <dt className="text-muted text-[11px] mb-0.5">Client</dt>
-                  <dd className="text-foreground">{localTicket.clients?.name ?? "—"}</dd>
+                  <dt className="text-muted text-[11px] mb-0.5">Project</dt>
+                  <dd className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: localTicket.projects.color }} />
+                    <span className="text-foreground text-[12px]">{localTicket.projects.name}</span>
+                  </dd>
                 </div>
+              )}
+              <div>
+                <dt className="text-muted text-[11px] mb-0.5">Assignee</dt>
+                <dd>
+                  {localTicket.team_members ? (
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-5 h-5 rounded-full bg-accent/15 flex items-center justify-center text-[9px] font-semibold text-accent">
+                        {localTicket.team_members.avatar_initials}
+                      </div>
+                      <span className="text-[12px] text-foreground">{localTicket.team_members.name}</span>
+                    </div>
+                  ) : (
+                    <span className="text-muted text-[12px]">Unassigned</span>
+                  )}
+                </dd>
+              </div>
+              {currentClient.is_admin && (
+                <>
+                  <div>
+                    <dt className="text-muted text-[11px] mb-0.5">Client</dt>
+                    <dd className="text-foreground">{localTicket.clients?.name ?? "—"}</dd>
+                  </div>
+                </>
               )}
               <div>
                 <dt className="text-muted text-[11px] mb-0.5">Created</dt>
@@ -201,25 +233,42 @@ export default function TicketDetail({ ticket, updates, currentClient }: TicketD
             </dl>
           </div>
 
-          {/* Admin: status update */}
+          {/* Admin controls */}
           {currentClient.is_admin && (
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-3">Update Status</h3>
-              <select
-                value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value as Status)}
-                className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition mb-2.5"
-              >
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+              <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">Admin</h3>
+
+              <div>
+                <label className="block text-[11px] text-muted mb-1">Status</label>
+                <select
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value as Status)}
+                  className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition"
+                >
+                  {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-muted mb-1">Assignee</label>
+                <select
+                  value={newAssigneeId}
+                  onChange={(e) => setNewAssigneeId(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition"
+                >
+                  <option value="">Unassigned</option>
+                  {teamMembers.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
+                  ))}
+                </select>
+              </div>
+
               <button
-                onClick={handleStatusUpdate}
-                disabled={submitting || newStatus === localTicket.status}
+                onClick={handleAdminUpdate}
+                disabled={submitting || (newStatus === localTicket.status && newAssigneeId === (localTicket.assignee_id ?? ""))}
                 className="w-full py-1.5 text-[12px] font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition disabled:opacity-60"
               >
-                {submitting ? "Saving…" : "Save Status"}
+                {submitting ? "Saving…" : "Save Changes"}
               </button>
             </div>
           )}

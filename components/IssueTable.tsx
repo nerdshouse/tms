@@ -15,12 +15,12 @@ interface IssueTableProps {
   initialSearch: string;
 }
 
-const statusTabs: { label: string; value: string }[] = [
-  { label: "All", value: "all" },
-  { label: "Open", value: "open" },
+const statusTabs = [
+  { label: "All",         value: "all" },
+  { label: "Open",        value: "open" },
   { label: "In Progress", value: "in_progress" },
-  { label: "In Review", value: "review" },
-  { label: "Done", value: "done" },
+  { label: "In Review",   value: "review" },
+  { label: "Done",        value: "done" },
 ];
 
 export default function IssueTable({ tickets, isAdmin, initialStatus, initialSearch }: IssueTableProps) {
@@ -36,6 +36,7 @@ export default function IssueTable({ tickets, isAdmin, initialStatus, initialSea
         t.title.toLowerCase().includes(q) ||
         t.id.toLowerCase().includes(q) ||
         t.module.toLowerCase().includes(q) ||
+        t.projects?.name?.toLowerCase().includes(q) ||
         (isAdmin && t.clients?.name?.toLowerCase().includes(q));
       return matchesStatus && matchesSearch;
     });
@@ -51,17 +52,13 @@ export default function IssueTable({ tickets, isAdmin, initialStatus, initialSea
           </h1>
           <p className="text-xs text-muted mt-0.5">{tickets.length} total</p>
         </div>
-        <Link
-          href="/new"
-          className="px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition"
-        >
+        <Link href="/new" className="px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition">
           + New Request
         </Link>
       </div>
 
       {/* Controls */}
       <div className="flex items-center gap-3 mb-4">
-        {/* Status tabs */}
         <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
           {statusTabs.map((tab) => (
             <button
@@ -77,8 +74,6 @@ export default function IssueTable({ tickets, isAdmin, initialStatus, initialSea
             </button>
           ))}
         </div>
-
-        {/* Search */}
         <div className="relative ml-auto">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
           <input
@@ -96,22 +91,23 @@ export default function IssueTable({ tickets, isAdmin, initialStatus, initialSea
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-border bg-gray-50/60">
-              <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-28">ID</th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-24">ID</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide">Title</th>
               {isAdmin && (
-                <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-32">Client</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-28">Client</th>
               )}
+              <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-32">Project</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-24">Type</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-16">Priority</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-28">Status</th>
-              <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-28">Module</th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-24">Module</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-28">Updated</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 8 : 7} className="px-4 py-12 text-center text-muted text-[13px]">
+                <td colSpan={isAdmin ? 9 : 8} className="px-4 py-12 text-center text-muted text-[13px]">
                   No issues found.
                 </td>
               </tr>
@@ -133,25 +129,23 @@ export default function IssueTable({ tickets, isAdmin, initialStatus, initialSea
                     </Link>
                   </td>
                   {isAdmin && (
-                    <td className="px-4 py-3 text-muted">
-                      {ticket.clients?.name ?? "—"}
-                    </td>
+                    <td className="px-4 py-3 text-muted">{ticket.clients?.name ?? "—"}</td>
                   )}
                   <td className="px-4 py-3">
-                    <TypeBadge type={ticket.type} />
+                    {ticket.projects ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: ticket.projects.color }} />
+                        <span className="text-[12px] text-foreground truncate max-w-[100px]">{ticket.projects.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
                   </td>
-                  <td className="px-4 py-3">
-                    <PriorityBadge priority={ticket.priority} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusIcon status={ticket.status as Status} showLabel />
-                  </td>
-                  <td className="px-4 py-3 text-muted">
-                    {ticket.module || "—"}
-                  </td>
-                  <td className="px-4 py-3 text-muted whitespace-nowrap">
-                    {formatIST(ticket.updated_at)}
-                  </td>
+                  <td className="px-4 py-3"><TypeBadge type={ticket.type} /></td>
+                  <td className="px-4 py-3"><PriorityBadge priority={ticket.priority} /></td>
+                  <td className="px-4 py-3"><StatusIcon status={ticket.status as Status} showLabel /></td>
+                  <td className="px-4 py-3 text-muted">{ticket.module || "—"}</td>
+                  <td className="px-4 py-3 text-muted whitespace-nowrap">{formatIST(ticket.updated_at)}</td>
                 </tr>
               ))
             )}

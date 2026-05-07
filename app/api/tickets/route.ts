@@ -22,6 +22,7 @@ export async function POST(request: Request) {
   const ticketType = formData.get("type") as string;
   const ticketModule = formData.get("module") as string;
   const description = formData.get("description") as string;
+  const projectId = formData.get("project_id") as string | null;
 
   if (!title || !description) {
     return NextResponse.json({ error: "Title and description are required" }, { status: 400 });
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
       module: ticketModule,
       description,
       client_id: user.id,
+      project_id: projectId || null,
     })
     .select()
     .single();

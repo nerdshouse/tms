@@ -22,7 +22,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { status } = await request.json() as { status: Status };
+  const { status, assignee_id } = await request.json() as { status: Status; assignee_id?: string | null };
 
   const admin = createAdminClient();
 
@@ -37,7 +37,7 @@ export async function PATCH(
 
   const { data: updated, error } = await admin
     .from("tickets")
-    .update({ status })
+    .update({ status, ...(assignee_id !== undefined && { assignee_id }) })
     .eq("id", params.id)
     .select()
     .single();
