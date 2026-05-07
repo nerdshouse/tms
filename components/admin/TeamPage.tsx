@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { useIsDemo } from "@/lib/demo-context";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -22,6 +23,7 @@ export default function TeamPage({ members: initial }: Props) {
   const [members, setMembers] = useState(initial);
   const [addOpen, setAddOpen] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const isDemo = useIsDemo();
 
   function handleAdded(m: TeamMember) {
     setMembers((prev) => [...prev, m]);
@@ -30,7 +32,6 @@ export default function TeamPage({ members: initial }: Props) {
 
   async function removeMember(id: string) {
     setRemovingId(id);
-    const isDemo = document.cookie.includes("demo_user=");
     if (isDemo) {
       setMembers((prev) => prev.filter((m) => m.id !== id));
       setRemovingId(null);

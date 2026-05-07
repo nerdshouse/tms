@@ -11,17 +11,20 @@ import type { Status } from "@/types";
 interface SidebarProps {
   user: Client;
   projects: (Project & { ticket_count: number })[];
+  isDemo: boolean;
 }
 
 const statuses: Status[] = ["open", "in_progress", "review", "done"];
 
-export default function Sidebar({ user, projects }: SidebarProps) {
+export default function Sidebar({ user, projects, isDemo }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
   async function handleSignOut() {
-    const isDemo = document.cookie.includes("demo_user=");
-    if (isDemo) { window.location.href = "/api/demo-logout"; return; }
+    if (isDemo) {
+      window.location.href = "/api/demo-logout";
+      return;
+    }
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/login");

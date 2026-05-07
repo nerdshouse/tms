@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { DEMO_ADMIN, DEMO_CLIENT, DEMO_PROJECTS, DEMO_TICKETS } from "@/lib/demo-data";
+import { DemoProvider } from "@/lib/demo-context";
 import type { Client, Project } from "@/types";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -59,12 +60,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     })) as (Project & { ticket_count: number })[];
   }
 
+  const isDemo = demoUser === "admin" || demoUser === "client";
+
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar user={client} projects={projects} />
-      <main className="flex-1 ml-56 min-h-screen">
-        {children}
-      </main>
-    </div>
+    <DemoProvider isDemo={isDemo}>
+      <div className="flex min-h-screen bg-background">
+        <Sidebar user={client} projects={projects} isDemo={isDemo} />
+        <main className="flex-1 ml-56 min-h-screen">
+          {children}
+        </main>
+      </div>
+    </DemoProvider>
   );
 }

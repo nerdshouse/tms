@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Plus, Trash2, Mail, Building2 } from "lucide-react";
+import { useIsDemo } from "@/lib/demo-context";
 import Sheet from "@/components/ui/Sheet";
 import AddProjectSheet from "@/components/admin/AddProjectSheet";
 import { StatusIcon } from "@/components/ui/StatusIcon";
@@ -20,6 +21,7 @@ export default function ClientDetail({ client, projects: initialProjects, ticket
   const [projects, setProjects] = useState(initialProjects);
   const [addProjectOpen, setAddProjectOpen] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const isDemo = useIsDemo();
 
   function handleProjectAdded(p: Project) {
     setProjects((prev) => [...prev, p]);
@@ -28,7 +30,6 @@ export default function ClientDetail({ client, projects: initialProjects, ticket
 
   async function removeProject(id: string) {
     setRemovingId(id);
-    const isDemo = document.cookie.includes("demo_user=");
     if (isDemo) {
       setProjects((prev) => prev.filter((p) => p.id !== id));
       setRemovingId(null);

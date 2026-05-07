@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useIsDemo } from "@/lib/demo-context";
 import type { Client, Project } from "@/types";
 
 interface Props {
@@ -22,13 +23,13 @@ export default function AddProjectSheet({ client, onSuccess, onClose }: Props) {
   const [color, setColor] = useState(PRESET_COLORS[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const isDemo = useIsDemo();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    const isDemo = document.cookie.includes("demo_user=");
     if (isDemo) {
       const fake: Project = {
         id: `proj-new-${Date.now()}`,

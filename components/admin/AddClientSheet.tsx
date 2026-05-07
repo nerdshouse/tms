@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useIsDemo } from "@/lib/demo-context";
 import type { Client, ClientStatus } from "@/types";
 
 interface Props {
@@ -15,6 +16,7 @@ export default function AddClientSheet({ onSuccess, onClose }: Props) {
   const [form, setForm] = useState({ name: "", company: "", email: "", status: "active" as ClientStatus });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const isDemo = useIsDemo();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,7 +24,6 @@ export default function AddClientSheet({ onSuccess, onClose }: Props) {
     setError("");
 
     // Demo mode: fabricate a client object
-    const isDemo = document.cookie.includes("demo_user=");
     if (isDemo) {
       const fakeClient: Client = {
         id: `demo-new-${Date.now()}`,
