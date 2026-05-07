@@ -4,20 +4,28 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow demo login/logout through unconditionally
+  // ── 1. Always allow demo API routes ───────────────────────────────────────
   if (pathname.startsWith("/api/demo-login") || pathname.startsWith("/api/demo-logout")) {
     return NextResponse.next();
   }
 
-  // Demo mode: cookie-based auth bypass
-  const demoUser = request.cookies.get("demo_user")?.value;
-  if (demoUser === "admin" || demoUser === "client") {
-    if (pathname === "/login") {
+  // ── 2. Always allow login + auth callback (no Supabase call needed) ───────
+  if (pathname.startsWith("/login") || pathname.startsWith("/auth")) {
+    // Redirect already-authenticated demo users away from login
+    const demoUser = request.cookies.get("demo_user")?.value;
+    if ((demoUser === "admin" || demoUser === "client") && pathname === "/login") {
       return NextResponse.redirect(new URL("/", request.url));
     }
     return NextResponse.next();
   }
 
+  // ── 3. Demo mode: skip Supabase entirely ──────────────────────────────────
+  const demoUser = request.cookies.get("demo_user")?.value;
+  if (demoUser === "admin" || demoUser === "client") {
+    return NextResponse.next();
+  }
+
+  // ── 4. Real auth: verify Supabase session ────────────────────────────────
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -25,13 +33,9 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
+        getAll() { return request.cookies.getAll(); },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
@@ -41,17 +45,7 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // Allow auth routes through
-  if (pathname.startsWith("/login") || pathname.startsWith("/auth")) {
-    if (user && pathname === "/login") {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
-    return supabaseResponse;
-  }
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.redirect(new URL("/login", request.url));
