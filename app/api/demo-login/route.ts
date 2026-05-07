@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   const response = NextResponse.redirect(new URL("/", request.url));
   response.cookies.set("demo_user", role, {
     path: "/",
-    httpOnly: true,
+    httpOnly: false,
     sameSite: "lax",
     maxAge: 60 * 60 * 24, // 24h
   });
