@@ -187,7 +187,7 @@ export default function TicketDetail({ ticket, updates, currentClient }: TicketD
               {currentClient.is_admin && (
                 <div>
                   <dt className="text-muted text-[11px] mb-0.5">Client</dt>
-                  <dd className="text-foreground">{(localTicket as Ticket & { clients?: { name: string } }).clients?.name ?? "—"}</dd>
+                  <dd className="text-foreground">{localTicket.clients?.name ?? "—"}</dd>
                 </div>
               )}
               <div>

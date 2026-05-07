@@ -1,26 +1,38 @@
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import AnalyticsDashboard from "@/components/AnalyticsDashboard";
+import { DEMO_TICKETS } from "@/lib/demo-data";
 import type { Ticket } from "@/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage() {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const cookieStore = cookies();
+  const demoUser = cookieStore.get("demo_user")?.value;
 
-  const { data: client } = await supabase
-    .from("clients")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single();
+  let tickets: Ticket[];
 
-  if (!client?.is_admin) redirect("/");
+  if (demoUser === "admin" || demoUser === "client") {
+    if (demoUser !== "admin") redirect("/");
+    tickets = DEMO_TICKETS as Ticket[];
+  } else {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) redirect("/login");
 
-  const { data: tickets } = await supabase
-    .from("tickets")
-    .select("id, status, priority, type, module, created_at");
+    const { data: client } = await supabase
+      .from("clients")
+      .select("is_admin")
+      .eq("id", user.id)
+      .single();
+    if (!client?.is_admin) redirect("/");
 
-  return <AnalyticsDashboard tickets={(tickets ?? []) as Ticket[]} />;
+    const { data } = await supabase
+      .from("tickets")
+      .select("id, status, priority, type, module, created_at");
+    tickets = (data ?? []) as Ticket[];
+  }
+
+  return <AnalyticsDashboard tickets={tickets} />;
 }

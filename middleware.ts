@@ -2,6 +2,22 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Allow demo login/logout through unconditionally
+  if (pathname.startsWith("/api/demo-login") || pathname.startsWith("/api/demo-logout")) {
+    return NextResponse.next();
+  }
+
+  // Demo mode: cookie-based auth bypass
+  const demoUser = request.cookies.get("demo_user")?.value;
+  if (demoUser === "admin" || demoUser === "client") {
+    if (pathname === "/login") {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+    return NextResponse.next();
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -29,8 +45,6 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-
   // Allow auth routes through
   if (pathname.startsWith("/login") || pathname.startsWith("/auth")) {
     if (user && pathname === "/login") {
@@ -39,7 +53,6 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Redirect unauthenticated users to login
   if (!user) {
     return NextResponse.redirect(new URL("/login", request.url));
   }

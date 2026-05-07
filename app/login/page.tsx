@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -33,7 +34,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="bg-card border border-border rounded-xl p-8 w-full max-w-sm shadow-sm">
-        {/* Logo / Brand */}
+        {/* Brand */}
         <div className="mb-8 text-center">
           <div className="inline-flex items-center gap-2 mb-1">
             <span className="w-7 h-7 rounded-md bg-accent flex items-center justify-center">
@@ -85,6 +86,29 @@ export default function LoginPage() {
                 {loading ? "Sending…" : "Send magic link"}
               </button>
             </form>
+
+            {/* Demo access */}
+            <div className="mt-6 pt-5 border-t border-border">
+              <p className="text-[11px] text-muted text-center mb-3 uppercase tracking-wide font-medium">
+                Demo access
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  href="/api/demo-login?role=client"
+                  className="flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-lg border border-border hover:bg-gray-50 hover:border-accent/40 transition text-center"
+                >
+                  <span className="text-[13px] font-medium text-foreground">Client</span>
+                  <span className="text-[11px] text-muted">Priya Sharma</span>
+                </Link>
+                <Link
+                  href="/api/demo-login?role=admin"
+                  className="flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-lg border border-border hover:bg-gray-50 hover:border-accent/40 transition text-center"
+                >
+                  <span className="text-[13px] font-medium text-foreground">Admin</span>
+                  <span className="text-[11px] text-muted">Axit Mehta</span>
+                </Link>
+              </div>
+            </div>
           </>
         )}
       </div>

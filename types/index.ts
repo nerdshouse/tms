@@ -23,7 +23,7 @@ export interface Ticket {
   client_id: string;
   created_at: string;
   updated_at: string;
-  clients?: Client;
+  clients?: Pick<Client, "name" | "company" | "email">;
 }
 
 export interface TicketUpdate {

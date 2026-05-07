@@ -19,6 +19,12 @@ export default function Sidebar({ user }: SidebarProps) {
   const router = useRouter();
 
   async function handleSignOut() {
+    // Check for demo session
+    const isDemo = document.cookie.includes("demo_user=");
+    if (isDemo) {
+      window.location.href = "/api/demo-logout";
+      return;
+    }
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/login");
