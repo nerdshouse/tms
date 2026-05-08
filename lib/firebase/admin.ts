@@ -37,6 +37,7 @@ function lazyProxy<T extends object>(getInstance: () => T): T {
       const instance = getInstance();
       const value = (instance as Record<string | symbol, unknown>)[prop];
       // Bind methods so `this` is correct inside Firebase SDK internals
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
       return typeof value === "function" ? (value as Function).bind(instance) : value;
     },
   });
