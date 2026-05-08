@@ -5,16 +5,15 @@ import admin from "firebase-admin";
 const SESSION_EXPIRES_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 
 /**
- * POST /api/session
- *
- * Exchange a fresh Google ID token for an httpOnly session cookie.
- *
- * Access control on first sign-in:
- *   1. Email found in `team_members`       → admin access
- *   2. Email found in `clients`            → client access (migrates old doc to UID if needed)
- *   3. Email found in any contacts sub-col → contact access (sub-user of a client)
- *   4. None of the above                   → 403 access denied
+ * Emails listed in ADMIN_EMAILS env var (comma-separated) are always
+ * granted admin access regardless of Firestore state. Use this to
+ * bootstrap the first admin without needing a Firestore document.
  */
+function isEnvAdmin(email: string): boolean {
+  const raw = process.env.ADMIN_EMAILS ?? "";
+  return raw.split(",").map((e) => e.trim().toLowerCase()).includes(email.toLowerCase());
+}
+
 export async function POST(request: Request) {
   const { idToken } = await request.json() as { idToken?: string };
   if (!idToken) return NextResponse.json({ error: "idToken required" }, { status: 400 });
@@ -35,32 +34,12 @@ export async function POST(request: Request) {
 
   if (!clientSnap.exists) {
     // ── 2. First sign-in: determine access level ────────────────────────────
-    const [teamSnap, existingClientSnap, contactsSnap] = await Promise.all([
-      adminDb.collection("team_members").where("email", "==", email).limit(1).get(),
-      adminDb.collection("clients").where("email", "==", email).limit(1).get(),
-      adminDb.collectionGroup("contacts").where("email", "==", email).limit(1).get(),
-    ]);
-
-    const isTeamMember     = !teamSnap.empty;
-    const isExistingClient = !existingClientSnap.empty;
-    const isContact        = !contactsSnap.empty;
-
-    if (!isTeamMember && !isExistingClient && !isContact) {
-      return NextResponse.json(
-        {
-          error:   "access_denied",
-          message: "Access not granted. Contact Nerdshouse at hello@nerdshouse.com",
-        },
-        { status: 403 }
-      );
-    }
-
     const now = admin.firestore.FieldValue.serverTimestamp();
 
-    if (isTeamMember) {
-      const tm = teamSnap.docs[0].data();
+    // Env-var admin whitelist takes priority — bypasses Firestore lookup
+    if (isEnvAdmin(email)) {
       await clientRef.set({
-        name:       tm.name ?? googleName ?? email.split("@")[0],
+        name:       googleName ?? email.split("@")[0],
         email,
         company:    "Nerdshouse Technologies LLP",
         is_admin:   true,
@@ -70,42 +49,76 @@ export async function POST(request: Request) {
       });
       await adminAuth.setCustomUserClaims(uid, { is_admin: true });
 
-    } else if (isExistingClient) {
-      const existingData = existingClientSnap.docs[0].data();
-      const oldDocId     = existingClientSnap.docs[0].id;
-
-      await clientRef.set({
-        ...existingData,
-        avatar_url: picture ?? existingData.avatar_url ?? null,
-        created_at: existingData.created_at ?? now,
-      });
-
-      if (oldDocId !== uid) {
-        await adminDb.collection("clients").doc(oldDocId).delete();
-      }
-      await adminAuth.setCustomUserClaims(uid, { is_admin: false });
-
     } else {
-      // Contact: create client doc linked to parent
-      const contactDoc       = contactsSnap.docs[0];
-      const parentClientId   = contactDoc.ref.parent.parent!.id;
-      const parentClientSnap = await adminDb.collection("clients").doc(parentClientId).get();
-      const parentData       = parentClientSnap.exists ? parentClientSnap.data()! : {};
+      const [teamSnap, existingClientSnap, contactsSnap] = await Promise.all([
+        adminDb.collection("team_members").where("email", "==", email).limit(1).get(),
+        adminDb.collection("clients").where("email", "==", email).limit(1).get(),
+        adminDb.collectionGroup("contacts").where("email", "==", email).limit(1).get(),
+      ]);
 
-      await clientRef.set({
-        name:             googleName ?? email.split("@")[0],
-        email,
-        company:          parentData.company ?? "",
-        is_admin:         false,
-        is_contact:       true,
-        parent_client_id: parentClientId,
-        status:           "active",
-        avatar_url:       picture ?? null,
-        created_at:       now,
-      });
-      await adminAuth.setCustomUserClaims(uid, { is_admin: false });
-      // Mark contact as active
-      await contactDoc.ref.update({ status: "active" });
+      const isTeamMember     = !teamSnap.empty;
+      const isExistingClient = !existingClientSnap.empty;
+      const isContact        = !contactsSnap.empty;
+
+      if (!isTeamMember && !isExistingClient && !isContact) {
+        return NextResponse.json(
+          {
+            error:   "access_denied",
+            message: "Access not granted. Contact Nerdshouse at hello@nerdshouse.com",
+          },
+          { status: 403 }
+        );
+      }
+
+      if (isTeamMember) {
+        const tm = teamSnap.docs[0].data();
+        await clientRef.set({
+          name:       tm.name ?? googleName ?? email.split("@")[0],
+          email,
+          company:    "Nerdshouse Technologies LLP",
+          is_admin:   true,
+          status:     "active",
+          avatar_url: picture ?? null,
+          created_at: now,
+        });
+        await adminAuth.setCustomUserClaims(uid, { is_admin: true });
+
+      } else if (isExistingClient) {
+        const existingData = existingClientSnap.docs[0].data();
+        const oldDocId     = existingClientSnap.docs[0].id;
+
+        await clientRef.set({
+          ...existingData,
+          avatar_url: picture ?? existingData.avatar_url ?? null,
+          created_at: existingData.created_at ?? now,
+        });
+
+        if (oldDocId !== uid) {
+          await adminDb.collection("clients").doc(oldDocId).delete();
+        }
+        await adminAuth.setCustomUserClaims(uid, { is_admin: false });
+
+      } else {
+        // Contact: create client doc linked to parent
+        const contactDoc       = contactsSnap.docs[0];
+        const parentClientId   = contactDoc.ref.parent.parent!.id;
+        const parentClientSnap = await adminDb.collection("clients").doc(parentClientId).get();
+        const parentData       = parentClientSnap.exists ? parentClientSnap.data()! : {};
+
+        await clientRef.set({
+          name:             googleName ?? email.split("@")[0],
+          email,
+          company:          parentData.company ?? "",
+          is_admin:         false,
+          is_contact:       true,
+          parent_client_id: parentClientId,
+          status:           "active",
+          avatar_url:       picture ?? null,
+          created_at:       now,
+        });
+        await adminAuth.setCustomUserClaims(uid, { is_admin: false });
+        await contactDoc.ref.update({ status: "active" });
+      }
     }
   }
 
@@ -127,7 +140,6 @@ export async function POST(request: Request) {
       path:     "/",
       sameSite: "lax",
     });
-    // Non-secret role hint for middleware fast redirects (not a security boundary)
     response.cookies.set("user_role", isAdmin ? "admin" : "client", {
       httpOnly: false,
       secure:   process.env.NODE_ENV === "production",
