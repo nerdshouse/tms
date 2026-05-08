@@ -21,8 +21,10 @@ export async function POST(request: Request) {
   let decoded: admin.auth.DecodedIdToken;
   try {
     decoded = await adminAuth.verifyIdToken(idToken);
-  } catch {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("verifyIdToken failed:", msg);
+    return NextResponse.json({ error: "Invalid token", detail: msg }, { status: 401 });
   }
 
   const { uid, email, name: googleName, picture } = decoded;
