@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: is the requesting user an admin?
+    function isAdmin() {
+      return request.auth != null && request.auth.token.is_admin == true;
+    }
+
+    // clients — admin sees all; each client sees only their own doc
+    match /clients/{uid} {
+      allow read:  if request.auth != null && (isAdmin() || request.auth.uid == uid);
+      allow write: if isAdmin();
+    }
+
+    // tickets — admin sees all; client sees only their own
+    match /tickets/{ticketId} {
+      allow read:  if request.auth != null &&
+                     (isAdmin() || resource.data.client_id == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    // ticket_updates — mirrors ticket visibility
+    match /ticket_updates/{updateId} {
+      allow read: if request.auth != null &&
+                    (isAdmin() ||
+                     get(/databases/$(database)/documents/tickets/$(resource.data.ticket_id)).data.client_id == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    // projects — admin sees all; client sees their own
+    match /projects/{projectId} {
+      allow read:  if request.auth != null &&
+                     (isAdmin() || resource.data.client_id == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    // team_members — admin only
+    match /team_members/{memberId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getSessionClient, adminDb, docToProject } from "@/lib/firebase/helpers";
 import { DEMO_PROJECTS, DEMO_CLIENT } from "@/lib/demo-data";
 
 export async function GET() {
@@ -8,22 +8,20 @@ export async function GET() {
   const demoUser = cookieStore.get("demo_user")?.value;
 
   if (demoUser === "client") {
-    const projects = DEMO_PROJECTS.filter((p) => p.client_id === DEMO_CLIENT.id);
-    return NextResponse.json(projects);
+    return NextResponse.json(DEMO_PROJECTS.filter((p) => p.client_id === DEMO_CLIENT.id));
   }
   if (demoUser === "admin") {
     return NextResponse.json(DEMO_PROJECTS);
   }
 
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json([], { status: 401 });
+  const client = await getSessionClient();
+  if (!client) return NextResponse.json([], { status: 401 });
 
-  const { data } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("client_id", user.id)
-    .order("created_at");
+  const snap = await adminDb
+    .collection("projects")
+    .where("client_id", "==", client.id)
+    .orderBy("created_at")
+    .get();
 
-  return NextResponse.json(data ?? []);
+  return NextResponse.json(snap.docs.map(docToProject));
 }

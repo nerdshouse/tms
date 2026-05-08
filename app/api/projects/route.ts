@@ -1,25 +1,42 @@
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
+import admin from "firebase-admin";
 
 export async function POST(request: Request) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const demoUser = cookies().get("demo_user")?.value;
+  if (demoUser === "admin") {
+    const body = await request.json();
+    return NextResponse.json({
+      id: `demo-proj-${Date.now()}`, ...body,
+      color: body.color ?? "#4a4fe0", created_at: new Date().toISOString(),
+    });
+  }
 
-  const { data: me } = await supabase.from("clients").select("is_admin").eq("id", user.id).single();
+  const me = await getSessionClient();
   if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { name, client_id, color } = await request.json();
   if (!name || !client_id) return NextResponse.json({ error: "Name and client_id required" }, { status: 400 });
 
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("projects")
-    .insert({ name, client_id, color: color ?? "#4a4fe0" })
-    .select()
-    .single();
+  // Denormalize client name for display
+  const clientSnap = await adminDb.collection("clients").doc(client_id).get();
+  const clientName    = clientSnap.exists ? clientSnap.data()!.name : "";
+  const clientCompany = clientSnap.exists ? clientSnap.data()!.company : "";
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  const ref = await adminDb.collection("projects").add({
+    name,
+    client_id,
+    color:          color ?? "#4a4fe0",
+    client_name:    clientName,
+    client_company: clientCompany,
+    created_at:     now,
+  });
+
+  return NextResponse.json({
+    id: ref.id, name, client_id, color: color ?? "#4a4fe0",
+    clients: { name: clientName, company: clientCompany },
+    created_at: new Date().toISOString(),
+  });
 }

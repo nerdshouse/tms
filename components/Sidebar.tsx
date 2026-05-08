@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BarChart2, LayoutList, Plus, LogOut, Users, UserCircle2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase/client";
 import type { Client, Project } from "@/types";
 import { StatusIcon, statusMeta } from "@/components/ui/StatusIcon";
 import type { Status } from "@/types";
@@ -25,8 +26,8 @@ export default function Sidebar({ user, projects, isDemo }: SidebarProps) {
       window.location.href = "/api/demo-logout";
       return;
     }
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await signOut(auth);
+    await fetch("/api/session", { method: "DELETE" });
     router.push("/login");
     router.refresh();
   }

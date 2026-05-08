@@ -1,9 +1,9 @@
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { DEMO_ADMIN, DEMO_CLIENT, DEMO_PROJECTS, DEMO_TICKETS } from "@/lib/demo-data";
 import { DemoProvider } from "@/lib/demo-context";
+import { getSessionClient, adminDb, docToProject } from "@/lib/firebase/helpers";
 import type { Client, Project } from "@/types";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -30,34 +30,30 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         }));
     }
   } else {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) redirect("/login");
+    const sessionClient = await getSessionClient();
+    if (!sessionClient) redirect("/login");
+    client = sessionClient;
 
-    const { data } = await supabase.from("clients").select("*").eq("id", user.id).single();
-    if (!data) redirect("/login");
-    client = data as Client;
+    // Projects visible to this user (admin sees all, client sees own)
+    const projectsQuery = client.is_admin
+      ? adminDb.collection("projects").orderBy("created_at")
+      : adminDb.collection("projects").where("client_id", "==", client.id).orderBy("created_at");
 
-    // Fetch projects scoped to this user (RLS handles visibility)
-    const { data: projectsData } = await supabase
-      .from("projects")
-      .select("*")
-      .order("created_at");
-
-    const { data: ticketCounts } = await supabase
-      .from("tickets")
-      .select("project_id")
-      .not("project_id", "is", null);
+    const [projectsSnap, ticketsSnap] = await Promise.all([
+      projectsQuery.get(),
+      adminDb.collection("tickets").select("project_id").get(),
+    ]);
 
     const countMap: Record<string, number> = {};
-    (ticketCounts ?? []).forEach((t: { project_id: string }) => {
-      countMap[t.project_id] = (countMap[t.project_id] ?? 0) + 1;
+    ticketsSnap.docs.forEach((d) => {
+      const pid = d.data().project_id;
+      if (pid) countMap[pid] = (countMap[pid] ?? 0) + 1;
     });
 
-    projects = (projectsData ?? []).map((p) => ({
-      ...p,
-      ticket_count: countMap[p.id] ?? 0,
-    })) as (Project & { ticket_count: number })[];
+    projects = projectsSnap.docs.map((snap) => ({
+      ...docToProject(snap),
+      ticket_count: countMap[snap.id] ?? 0,
+    }));
   }
 
   const isDemo = demoUser === "admin" || demoUser === "client";

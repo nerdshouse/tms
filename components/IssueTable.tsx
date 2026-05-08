@@ -7,6 +7,8 @@ import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
 import type { Ticket, Status } from "@/types";
 import { formatIST } from "@/lib/utils";
+import { useRealtime } from "@/lib/use-realtime";
+import { useIsDemo } from "@/lib/demo-context";
 
 interface IssueTableProps {
   tickets: Ticket[];
@@ -23,24 +25,39 @@ const statusTabs = [
   { label: "Done",        value: "done" },
 ];
 
-export default function IssueTable({ tickets, isAdmin, initialStatus, initialSearch }: IssueTableProps) {
+export default function IssueTable({ tickets: initialTickets, isAdmin, initialStatus, initialSearch }: IssueTableProps) {
+  const [tickets, setTickets] = useState(initialTickets);
   const [activeStatus, setActiveStatus] = useState(initialStatus);
   const [search, setSearch] = useState(initialSearch);
+  const isDemo = useIsDemo();
 
-  const filtered = useMemo(() => {
-    return tickets.filter((t) => {
-      const matchesStatus = activeStatus === "all" || t.status === activeStatus;
-      const q = search.toLowerCase();
-      const matchesSearch =
-        !q ||
-        t.title.toLowerCase().includes(q) ||
-        t.id.toLowerCase().includes(q) ||
-        t.module.toLowerCase().includes(q) ||
-        t.projects?.name?.toLowerCase().includes(q) ||
-        (isAdmin && t.clients?.name?.toLowerCase().includes(q));
-      return matchesStatus && matchesSearch;
-    });
-  }, [tickets, activeStatus, search, isAdmin]);
+  useRealtime<Ticket>({
+    table: "tickets",
+    events: ["INSERT", "UPDATE"],
+    disabled: isDemo,
+    onInsert: (row) => setTickets((prev) => [row, ...prev]),
+    onUpdate: (row) =>
+      setTickets((prev) =>
+        prev.map((t) => (t.id === row.id ? { ...t, ...row } : t))
+      ),
+  });
+
+  const filtered = useMemo(
+    () =>
+      tickets.filter((t) => {
+        const matchesStatus = activeStatus === "all" || t.status === activeStatus;
+        const q = search.toLowerCase();
+        const matchesSearch =
+          !q ||
+          t.title.toLowerCase().includes(q) ||
+          t.id.toLowerCase().includes(q) ||
+          t.module.toLowerCase().includes(q) ||
+          t.projects?.name?.toLowerCase().includes(q) ||
+          (isAdmin && t.clients?.name?.toLowerCase().includes(q));
+        return matchesStatus && matchesSearch;
+      }),
+    [tickets, activeStatus, search, isAdmin]
+  );
 
   return (
     <div className="p-6">

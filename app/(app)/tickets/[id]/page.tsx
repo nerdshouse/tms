@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import TicketDetail from "@/components/TicketDetail";
 import { DEMO_TICKETS, DEMO_UPDATES, DEMO_ADMIN, DEMO_CLIENT, DEMO_TEAM_MEMBERS } from "@/lib/demo-data";
+import { getSessionClient, adminDb, docToTicket, docToUpdate, docToTeamMember } from "@/lib/firebase/helpers";
 import type { Ticket, TicketUpdate, Client, TeamMember } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -24,24 +24,26 @@ export default async function TicketPage({ params }: { params: { id: string } })
     updates = DEMO_UPDATES[params.id] ?? [];
     if (demoUser === "admin") teamMembers = DEMO_TEAM_MEMBERS;
   } else {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) redirect("/login");
-
-    const { data: client } = await supabase.from("clients").select("*").eq("id", user.id).single();
+    const client = await getSessionClient();
     if (!client) redirect("/login");
-    currentClient = client as Client;
+    currentClient = client;
 
-    const [{ data: ticketData }, { data: updatesData }, { data: membersData }] = await Promise.all([
-      supabase.from("tickets").select("*, clients(name,company,email), projects(name,color), team_members(name,avatar_initials)").eq("id", params.id).single(),
-      supabase.from("ticket_updates").select("*").eq("ticket_id", params.id).order("created_at", { ascending: true }),
-      client.is_admin ? supabase.from("team_members").select("*").eq("status", "active") : Promise.resolve({ data: [] }),
+    const [ticketSnap, updatesSnap, membersSnap] = await Promise.all([
+      adminDb.collection("tickets").doc(params.id).get(),
+      adminDb
+        .collection("ticket_updates")
+        .where("ticket_id", "==", params.id)
+        .orderBy("created_at", "asc")
+        .get(),
+      client.is_admin
+        ? adminDb.collection("team_members").where("status", "==", "active").get()
+        : Promise.resolve(null),
     ]);
 
-    if (!ticketData) notFound();
-    ticket = ticketData as Ticket;
-    updates = (updatesData ?? []) as TicketUpdate[];
-    teamMembers = (membersData ?? []) as TeamMember[];
+    if (!ticketSnap.exists) notFound();
+    ticket = docToTicket(ticketSnap);
+    updates = updatesSnap.docs.map(docToUpdate);
+    teamMembers = membersSnap ? membersSnap.docs.map(docToTeamMember) : [];
   }
 
   return (

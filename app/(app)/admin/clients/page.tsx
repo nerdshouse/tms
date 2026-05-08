@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import ClientsGrid from "@/components/admin/ClientsGrid";
 import { DEMO_CLIENTS, DEMO_PROJECTS, DEMO_TICKETS } from "@/lib/demo-data";
+import { getSessionClient, adminDb, docToClient, docToProject } from "@/lib/firebase/helpers";
 import type { Client, Project } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -22,32 +22,24 @@ export default async function AdminClientsPage() {
       DEMO_CLIENTS.map((c) => [c.id, DEMO_TICKETS.filter((t) => t.client_id === c.id).length])
     );
   } else {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) redirect("/login");
-    const { data: me } = await supabase.from("clients").select("is_admin").eq("id", user.id).single();
+    const me = await getSessionClient();
     if (!me?.is_admin) redirect("/");
 
-    const [{ data: clientsData }, { data: projectsData }] = await Promise.all([
-      supabase.from("clients").select("*").eq("is_admin", false).order("created_at"),
-      supabase.from("projects").select("*").order("created_at"),
+    const [clientsSnap, projectsSnap, ticketsSnap] = await Promise.all([
+      adminDb.collection("clients").where("is_admin", "==", false).orderBy("created_at").get(),
+      adminDb.collection("projects").orderBy("created_at").get(),
+      adminDb.collection("tickets").select("client_id").get(),
     ]);
-    clients = (clientsData ?? []) as Client[];
-    projects = (projectsData ?? []) as Project[];
 
-    // Ticket counts via separate query
-    const { data: ticketData } = await supabase.from("tickets").select("client_id");
+    clients = clientsSnap.docs.map(docToClient);
+    projects = projectsSnap.docs.map(docToProject);
+
     ticketCounts = {};
-    (ticketData ?? []).forEach((t: { client_id: string }) => {
-      ticketCounts[t.client_id] = (ticketCounts[t.client_id] ?? 0) + 1;
+    ticketsSnap.docs.forEach((d) => {
+      const cid = d.data().client_id as string;
+      if (cid) ticketCounts[cid] = (ticketCounts[cid] ?? 0) + 1;
     });
   }
 
-  return (
-    <ClientsGrid
-      clients={clients}
-      projects={projects}
-      ticketCounts={ticketCounts}
-    />
-  );
+  return <ClientsGrid clients={clients} projects={projects} ticketCounts={ticketCounts} />;
 }

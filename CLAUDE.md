@@ -8,30 +8,58 @@ clean, light background.
 
 ## Tech stack
 - Frontend: Next.js 14 (App Router), TypeScript, Tailwind CSS
-- Backend/DB: Supabase (Postgres + Auth + Realtime)
+- Backend/DB: Firebase (Firestore + Auth)
+- Realtime: Firestore `onSnapshot` (via `lib/use-realtime.ts`)
 - Email notifications: Resend
-- Deployment: Vercel (frontend), Supabase cloud (backend)
+- Deployment: Vercel (frontend), Firebase project (backend)
 - Font: Inter
 
 ## Commands
 - `npm run dev` — Start dev server on port 3000
 - `npm run build` — Production build
 - `npm run lint` — ESLint check
-- `npx supabase start` — Start local Supabase
+- `firebase deploy --only firestore:rules` — Deploy Firestore rules
+- `firebase deploy --only firestore:indexes` — Deploy Firestore indexes
 
 ## Architecture decisions
-- Use Supabase Row Level Security (RLS) so clients only see their own tickets
-- Magic link auth — no passwords, clients get login link via email
-- Admin users have a separate role in Supabase (is_admin: true)
+- **Auth**: Google Sign-In only (`signInWithPopup` + `GoogleAuthProvider`). On sign-in, the
+  Google ID token is POSTed to `/api/session` which provisions the user (first-time access
+  check) and creates an httpOnly `__session` cookie. Middleware verifies it server-side.
+- **Database**: Firestore with denormalized documents. Tickets embed `client_name`,
+  `project_name/color`, `assignee_name/initials` as flat fields to avoid join queries.
+- **Realtime**: `lib/use-realtime.ts` wraps Firestore `onSnapshot`, mirroring the old
+  Supabase hook API. Skips the initial snapshot to avoid duplicating server-rendered data.
+- **Admin SDK**: `lib/firebase/admin.ts` initializes once via `FIREBASE_SERVICE_ACCOUNT_B64`
+  (base64-encoded service account JSON). All server components and API routes use this.
+- **Client SDK**: `lib/firebase/client.ts` exports `auth` and `db` for client components.
+  Used by login page (sendSignInLinkToEmail), Sidebar (signOut), and realtime subscriptions.
+- **Helpers**: `lib/firebase/helpers.ts` provides `getSessionUid()`, `getSessionClient()`,
+  and `docTo*` converter functions for all Firestore document types.
+- **Security**: `firestore.rules` enforces access control (admin sees all; clients see own).
+  Custom claim `is_admin: true` is set on admin Firebase Auth users.
+- **Demo mode**: Cookie-based (`demo_user=admin|client`), no Firebase calls at all.
 - All dates/times in IST (Asia/Kolkata)
 
-## Database tables
-- clients: id, name, company, email, is_admin, created_at
-- tickets: id, title, description, priority (P0/P1/P2), status
-  (open/in_progress/review/done), type (Bug/Feature/Performance),
-  module, client_id, created_at, updated_at
-- ticket_updates: id, ticket_id, message, author_type (client/team),
-  author_name, created_at
+## Firestore collections
+- `clients/{uid}` — id = Firebase Auth UID; fields: name, company, email, is_admin, status, created_at
+- `tickets/{id}` — auto ID; denormalized with client_name, project_name/color, assignee_name/initials
+- `ticket_updates/{id}` — auto ID; fields: ticket_id, message, author_type, author_name, created_at
+- `projects/{id}` — auto ID; fields: name, client_id, color, client_name, client_company, created_at
+- `team_members/{id}` — auto ID; fields: name, email, role, avatar_initials, status, created_at
+
+## Firebase setup checklist (new project)
+1. Enable **Google** sign-in: Firebase Console → Authentication → Sign-in methods → Google
+2. Set support email (e.g. axit@nerdshouse.com) in the Google provider settings
+3. Add authorized domains: localhost (dev) + your Vercel URL (prod)
+4. Create a service account → download JSON → base64-encode → set `FIREBASE_SERVICE_ACCOUNT_B64`
+5. Deploy security rules: `firebase deploy --only firestore:rules`
+6. Deploy indexes: `firebase deploy --only firestore:indexes`
+
+## Access control on first sign-in (POST /api/session)
+When a Google user signs in for the first time (no `clients/{uid}` doc exists):
+- Email found in `team_members` → admin access, creates `clients/{uid}` with `is_admin: true`
+- Email found in `clients` (by email field) → client access, migrates old doc to `clients/{uid}`
+- Neither → 403 "No account found for this email" (user stays signed out)
 
 ## UI design reference
 - Plane.so aesthetic — sidebar nav, issue table with status/priority
@@ -80,7 +108,10 @@ clean, light background.
 20. Update: Sidebar admin — Projects section listing all projects with
     colour dot and ticket count
 
-## RLS additions
-- projects: admin sees all, clients see only their own
-- team_members: admin only (clients cannot see team data)
-- tickets: add project_id foreign key, update RLS accordingly
+## Firestore security model
+- `clients`: admin sees all; each client reads only their own doc
+- `tickets`: admin sees all; client reads only where `client_id == uid`
+- `ticket_updates`: admin sees all; client reads if they own the parent ticket
+- `projects`: admin sees all; client reads only where `client_id == uid`
+- `team_members`: admin read/write only
+- Custom claim `is_admin: true` set via Admin SDK when creating admin users

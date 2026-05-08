@@ -8,6 +8,8 @@ import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
 import { formatIST, formatISTShort } from "@/lib/utils";
 import type { Ticket, TicketUpdate, Client, Status, TeamMember } from "@/types";
+import { useRealtime } from "@/lib/use-realtime";
+import { useIsDemo } from "@/lib/demo-context";
 
 interface TicketDetailProps {
   ticket: Ticket;
@@ -25,6 +27,7 @@ const STATUS_OPTIONS: { value: Status; label: string }[] = [
 
 export default function TicketDetail({ ticket, updates, currentClient, teamMembers }: TicketDetailProps) {
   const router = useRouter();
+  const isDemo = useIsDemo();
   const [message, setMessage] = useState("");
   const [newStatus, setNewStatus] = useState<Status>(ticket.status);
   const [newAssigneeId, setNewAssigneeId] = useState<string>(ticket.assignee_id ?? "");
@@ -32,6 +35,31 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
   const [error, setError] = useState("");
   const [localUpdates, setLocalUpdates] = useState(updates);
   const [localTicket, setLocalTicket] = useState(ticket);
+
+  // Live activity feed: append new updates as they arrive
+  useRealtime<TicketUpdate>({
+    table: "ticket_updates",
+    filter: { column: "ticket_id", value: ticket.id },
+    events: ["INSERT"],
+    disabled: isDemo,
+    onInsert: (row) =>
+      setLocalUpdates((prev) =>
+        prev.some((u) => u.id === row.id) ? prev : [...prev, row]
+      ),
+  });
+
+  // Live ticket status/assignee changes from other sessions
+  useRealtime<Ticket>({
+    table: "tickets",
+    filter: { column: "id", value: ticket.id },
+    events: ["UPDATE"],
+    disabled: isDemo,
+    onUpdate: (row) => {
+      setLocalTicket((t) => ({ ...t, ...row }));
+      setNewStatus(row.status);
+      if (row.assignee_id !== undefined) setNewAssigneeId(row.assignee_id ?? "");
+    },
+  });
 
   async function handleReply(e: React.FormEvent) {
     e.preventDefault();

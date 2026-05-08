@@ -1,62 +1,74 @@
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
 import { sendTicketCreatedEmail } from "@/lib/email";
+import admin from "firebase-admin";
 
 export async function POST(request: Request) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Demo mode
+  const demoUser = cookies().get("demo_user")?.value;
+  if (demoUser === "client") {
+    const formData = await request.formData();
+    return NextResponse.json({ id: `demo-ticket-${Date.now()}`, title: formData.get("title") });
+  }
 
-  const { data: client } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
+  const client = await getSessionClient();
+  if (!client) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const formData = await request.formData();
-  const title = formData.get("title") as string;
-  const priority = formData.get("priority") as string;
-  const ticketType = formData.get("type") as string;
+  const title       = formData.get("title") as string;
+  const priority    = formData.get("priority") as string;
+  const ticketType  = formData.get("type") as string;
   const ticketModule = formData.get("module") as string;
   const description = formData.get("description") as string;
-  const projectId = formData.get("project_id") as string | null;
+  const projectId   = formData.get("project_id") as string | null;
 
   if (!title || !description) {
     return NextResponse.json({ error: "Title and description are required" }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-  const { data: ticket, error } = await admin
-    .from("tickets")
-    .insert({
-      title,
-      priority,
-      type: ticketType,
-      module: ticketModule,
-      description,
-      client_id: user.id,
-      project_id: projectId || null,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  // Look up project name/color for denormalization
+  let projectName: string | null = null;
+  let projectColor: string | null = null;
+  if (projectId) {
+    const pSnap = await adminDb.collection("projects").doc(projectId).get();
+    if (pSnap.exists) {
+      projectName  = pSnap.data()!.name;
+      projectColor = pSnap.data()!.color;
+    }
   }
 
-  // Send email notification (non-blocking)
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  const ref = await adminDb.collection("tickets").add({
+    title,
+    description,
+    priority,
+    type: ticketType,
+    module: ticketModule,
+    status: "open",
+    client_id:        client.id,
+    client_name:      client.name,
+    client_email:     client.email,
+    client_company:   client.company,
+    project_id:       projectId || null,
+    project_name:     projectName,
+    project_color:    projectColor,
+    assignee_id:      null,
+    assignee_name:    null,
+    assignee_initials: null,
+    created_at: now,
+    updated_at: now,
+  });
+
   sendTicketCreatedEmail({
-    ticketId: ticket.id,
-    title: ticket.title,
-    clientName: client.name,
+    ticketId:    ref.id,
+    title,
+    clientName:  client.name,
     clientEmail: client.email,
-    priority: ticket.priority,
-    type: ticket.type as string,
-    module: ticket.module as string,
+    priority,
+    type:        ticketType,
+    module:      ticketModule,
   }).catch(console.error);
 
-  return NextResponse.json({ id: ticket.id });
+  return NextResponse.json({ id: ref.id });
 }

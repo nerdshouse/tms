@@ -1,45 +1,43 @@
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
-
-async function assertAdmin() {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: client } = await supabase.from("clients").select("is_admin").eq("id", user.id).single();
-  return client?.is_admin ? supabase : null;
-}
+import { cookies } from "next/headers";
+import { adminDb, adminAuth, getSessionClient } from "@/lib/firebase/helpers";
+import admin from "firebase-admin";
 
 export async function POST(request: Request) {
-  const auth = await assertAdmin();
-  if (!auth) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // Demo mode
+  const demoUser = cookies().get("demo_user")?.value;
+  if (demoUser === "admin") {
+    const body = await request.json();
+    return NextResponse.json({ id: `demo-client-${Date.now()}`, ...body, is_admin: false, status: "active" });
+  }
+
+  const me = await getSessionClient();
+  if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { name, company, email, status } = await request.json();
   if (!name || !email) return NextResponse.json({ error: "Name and email required" }, { status: 400 });
 
-  const admin = createAdminClient();
+  // Create Firebase Auth user
+  let uid: string;
+  try {
+    const userRecord = await adminAuth.createUser({ email, displayName: name, emailVerified: true });
+    uid = userRecord.uid;
+    // Set custom claim so this user is NOT an admin
+    await adminAuth.setCustomUserClaims(uid, { is_admin: false });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to create user";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 
-  // Create auth user first (no password — they'll use magic link)
-  const { data: authUser, error: authErr } = await admin.auth.admin.createUser({
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  await adminDb.collection("clients").doc(uid).set({
+    name,
+    company:    company ?? "",
     email,
-    user_metadata: { name, company: company ?? "", is_admin: false },
-    email_confirm: true,
+    is_admin:   false,
+    status:     status ?? "active",
+    created_at: now,
   });
-  if (authErr) return NextResponse.json({ error: authErr.message }, { status: 500 });
 
-  const { data, error } = await admin
-    .from("clients")
-    .upsert({
-      id: authUser.user.id,
-      name,
-      company: company ?? "",
-      email,
-      is_admin: false,
-      status: status ?? "active",
-    })
-    .select()
-    .single();
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  return NextResponse.json({ id: uid, name, company: company ?? "", email, is_admin: false, status: status ?? "active" });
 }
