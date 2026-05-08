@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth, googleProvider, signInWithPopup } from "@/lib/firebase/client";
@@ -33,6 +32,11 @@ export default function LoginForm() {
         return;
       }
 
+      // Force token refresh so custom claims (is_admin) are immediately
+      // available to the client-side Firestore SDK before any onSnapshot
+      // subscriptions are set up on the next page.
+      await result.user.getIdToken(true);
+
       router.replace("/");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
@@ -56,7 +60,6 @@ export default function LoginForm() {
           <p className="text-muted text-sm mt-1">Client Portal</p>
         </div>
 
-        {/* Heading */}
         <h1 className="text-[17px] font-semibold text-foreground text-center mb-1">
           Welcome back
         </h1>
@@ -64,7 +67,6 @@ export default function LoginForm() {
           Sign in with your Google account to access the portal.
         </p>
 
-        {/* Google button */}
         <button
           onClick={handleGoogle}
           disabled={loading}
@@ -76,7 +78,6 @@ export default function LoginForm() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z" />
             </svg>
           ) : (
-            /* Official Google "G" logo */
             <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
               <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
               <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
@@ -87,35 +88,11 @@ export default function LoginForm() {
           {loading ? "Signing in…" : "Continue with Google"}
         </button>
 
-        {/* Error */}
         {error && (
           <p className="mt-4 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-center">
             {error}
           </p>
         )}
-
-        {/* Demo access */}
-        <div className="mt-6 pt-5 border-t border-border">
-          <p className="text-[11px] text-muted text-center mb-3 uppercase tracking-wide font-medium">
-            Demo access
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <Link
-              href="/api/demo-login?role=client"
-              className="flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-lg border border-border hover:bg-gray-50 hover:border-accent/40 transition text-center"
-            >
-              <span className="text-[13px] font-medium text-foreground">Client</span>
-              <span className="text-[11px] text-muted">Priya Sharma</span>
-            </Link>
-            <Link
-              href="/api/demo-login?role=admin"
-              className="flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-lg border border-border hover:bg-gray-50 hover:border-accent/40 transition text-center"
-            >
-              <span className="text-[13px] font-medium text-foreground">Admin</span>
-              <span className="text-[11px] text-muted">Axit Mehta</span>
-            </Link>
-          </div>
-        </div>
       </div>
     </div>
   );
