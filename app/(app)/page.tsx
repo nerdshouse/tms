@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import IssueTable from "@/components/IssueTable";
 import { DEMO_TICKETS, DEMO_ADMIN, DEMO_CLIENT } from "@/lib/demo-data";
-import { getSessionClient, adminDb, docToTicket } from "@/lib/firebase/helpers";
+import { getSessionClient, adminDb, docToTicket, effectiveClientId } from "@/lib/firebase/helpers";
 import type { Ticket } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +34,7 @@ export default async function Home({
       .orderBy("updated_at", "desc") as FirebaseFirestore.Query;
 
     if (!isAdmin) {
-      q = q.where("client_id", "==", client.id);
+      q = q.where("client_id", "==", effectiveClientId(client));
     }
     if (searchParams.status && searchParams.status !== "all") {
       q = q.where("status", "==", searchParams.status);

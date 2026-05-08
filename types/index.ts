@@ -5,6 +5,7 @@ export type AuthorType = "client" | "team";
 export type TeamRole = "Admin" | "Developer" | "Designer" | "QA";
 export type MemberStatus = "active" | "inactive";
 export type ClientStatus = "active" | "inactive";
+export type ContactStatus = "pending" | "active";
 
 export interface Client {
   id: string;
@@ -12,6 +13,12 @@ export interface Client {
   company: string;
   email: string;
   is_admin: boolean;
+  /** True when this user is an invited contact of a client (not the primary account holder) */
+  is_contact?: boolean;
+  /** If is_contact, this is the UID of the parent client whose data they can access */
+  parent_client_id?: string;
+  /** team_member ID assigned as Point of Contact for this client */
+  poc_id?: string;
   status: ClientStatus;
   created_at: string;
 }
@@ -21,6 +28,7 @@ export interface Project {
   name: string;
   client_id: string;
   color: string;
+  description?: string;
   created_at: string;
   clients?: Pick<Client, "name" | "company">;
   ticket_count?: number;
@@ -61,5 +69,14 @@ export interface TicketUpdate {
   message: string;
   author_type: AuthorType;
   author_name: string;
+  created_at: string;
+}
+
+/** Sub-document: clients/{clientId}/contacts/{contactId} */
+export interface ClientContact {
+  id: string;
+  name: string;
+  email: string;
+  status: ContactStatus;
   created_at: string;
 }

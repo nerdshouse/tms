@@ -4,7 +4,7 @@
  */
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
-import type { Client, Ticket, TicketUpdate, Project, TeamMember } from "@/types";
+import type { Client, Ticket, TicketUpdate, Project, TeamMember, ClientContact } from "@/types";
 import type { firestore } from "firebase-admin";
 
 // ── Session helpers ───────────────────────────────────────────────────────────
@@ -30,6 +30,14 @@ export async function getSessionClient(): Promise<Client | null> {
   return docToClient(snap);
 }
 
+/**
+ * Returns the effective client_id for data queries.
+ * Contacts share the parent client's data; regular clients use their own UID.
+ */
+export function effectiveClientId(client: Client): string {
+  return (client.is_contact && client.parent_client_id) ? client.parent_client_id : client.id;
+}
+
 // ── Document converters ───────────────────────────────────────────────────────
 
 function tsToIso(val: unknown): string {
@@ -44,13 +52,16 @@ function tsToIso(val: unknown): string {
 export function docToClient(snap: firestore.DocumentSnapshot): Client {
   const d = snap.data()!;
   return {
-    id:         snap.id,
-    name:       d.name,
-    company:    d.company ?? "",
-    email:      d.email,
-    is_admin:   d.is_admin ?? false,
-    status:     d.status ?? "active",
-    created_at: tsToIso(d.created_at),
+    id:                snap.id,
+    name:              d.name,
+    company:           d.company ?? "",
+    email:             d.email,
+    is_admin:          d.is_admin ?? false,
+    is_contact:        d.is_contact ?? false,
+    parent_client_id:  d.parent_client_id ?? undefined,
+    poc_id:            d.poc_id ?? undefined,
+    status:            d.status ?? "active",
+    created_at:        tsToIso(d.created_at),
   };
 }
 
@@ -96,26 +107,38 @@ export function docToUpdate(snap: firestore.DocumentSnapshot): TicketUpdate {
 export function docToProject(snap: firestore.DocumentSnapshot): Project {
   const d = snap.data()!;
   return {
-    id:         snap.id,
-    name:       d.name,
-    client_id:  d.client_id,
-    color:      d.color ?? "#4a4fe0",
-    created_at: tsToIso(d.created_at),
-    clients:    d.client_name ? { name: d.client_name, company: d.client_company ?? "" } : undefined,
+    id:          snap.id,
+    name:        d.name,
+    client_id:   d.client_id,
+    color:       d.color ?? "#4a4fe0",
+    description: d.description ?? undefined,
+    created_at:  tsToIso(d.created_at),
+    clients:     d.client_name ? { name: d.client_name, company: d.client_company ?? "" } : undefined,
   };
 }
 
 export function docToTeamMember(snap: firestore.DocumentSnapshot): TeamMember {
   const d = snap.data()!;
   return {
-    id:               snap.id,
-    name:             d.name,
-    email:            d.email,
-    role:             d.role,
-    avatar_initials:  d.avatar_initials,
-    status:           d.status ?? "active",
-    created_at:       tsToIso(d.created_at),
+    id:                snap.id,
+    name:              d.name,
+    email:             d.email,
+    role:              d.role,
+    avatar_initials:   d.avatar_initials,
+    status:            d.status ?? "active",
+    created_at:        tsToIso(d.created_at),
     open_ticket_count: d.open_ticket_count ?? 0,
+  };
+}
+
+export function docToContact(snap: firestore.DocumentSnapshot): ClientContact {
+  const d = snap.data()!;
+  return {
+    id:         snap.id,
+    name:       d.name,
+    email:      d.email,
+    status:     d.status ?? "pending",
+    created_at: tsToIso(d.created_at),
   };
 }
 

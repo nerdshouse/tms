@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Middleware does a lightweight cookie-presence check only.
+ * Middleware does lightweight cookie-presence / role checks only.
  * Full cryptographic verification of the __session cookie happens in
- * getSessionClient() (lib/firebase/helpers.ts) inside each server
- * component and API route — firebase-admin cannot be imported here
- * because middleware has its own webpack bundle that can't handle node: URIs.
+ * getSessionClient() inside each server component and API route —
+ * firebase-admin cannot be imported here (node: URI webpack issue).
+ *
+ * The `user_role` cookie is a non-secret hint set at login; the real
+ * authorization check is always enforced server-side.
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -37,17 +39,24 @@ export async function middleware(request: NextRequest) {
   // ── 3. Demo mode ──────────────────────────────────────────────────────────
   const demoUser = request.cookies.get("demo_user")?.value;
   if (demoUser === "admin" || demoUser === "client") {
+    // Demo clients cannot access /admin/*
+    if (demoUser === "client" && pathname.startsWith("/admin")) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
     return NextResponse.next();
   }
 
   // ── 4. Real auth: presence check only ────────────────────────────────────
-  // Cookie existence gates the route. The actual Firebase token verification
-  // happens in getSessionClient() inside the server component/API route.
-  // A tampered or expired cookie will cause getSessionClient() to return null
-  // and the server component will redirect("/login").
   const sessionCookie = request.cookies.get("__session")?.value;
   if (!sessionCookie) {
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // ── 5. Role-based route guard (fast, non-cryptographic) ──────────────────
+  // The actual role check is enforced server-side in each page/API route.
+  const userRole = request.cookies.get("user_role")?.value;
+  if (userRole === "client" && pathname.startsWith("/admin")) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return NextResponse.next();

@@ -16,12 +16,11 @@ export async function POST(request: Request) {
   const me = await getSessionClient();
   if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { name, client_id, color } = await request.json();
+  const { name, client_id, color, description } = await request.json();
   if (!name || !client_id) return NextResponse.json({ error: "Name and client_id required" }, { status: 400 });
 
-  // Denormalize client name for display
-  const clientSnap = await adminDb.collection("clients").doc(client_id).get();
-  const clientName    = clientSnap.exists ? clientSnap.data()!.name : "";
+  const clientSnap    = await adminDb.collection("clients").doc(client_id).get();
+  const clientName    = clientSnap.exists ? clientSnap.data()!.name    : "";
   const clientCompany = clientSnap.exists ? clientSnap.data()!.company : "";
 
   const now = admin.firestore.FieldValue.serverTimestamp();
@@ -29,6 +28,7 @@ export async function POST(request: Request) {
     name,
     client_id,
     color:          color ?? "#4a4fe0",
+    description:    description ?? "",
     client_name:    clientName,
     client_company: clientCompany,
     created_at:     now,
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     id: ref.id, name, client_id, color: color ?? "#4a4fe0",
+    description: description ?? "",
     clients: { name: clientName, company: clientCompany },
     created_at: new Date().toISOString(),
   });

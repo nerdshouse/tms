@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import Sheet from "@/components/ui/Sheet";
 import AddTeamMemberSheet from "@/components/admin/AddTeamMemberSheet";
+import { useRealtime } from "@/lib/use-realtime";
 import type { TeamMember, TeamRole } from "@/types";
 
 interface Props { members: TeamMember[] }
@@ -20,10 +21,19 @@ const ROLE_COLORS: Record<TeamRole, string> = {
 };
 
 export default function TeamPage({ members: initial }: Props) {
-  const [members, setMembers] = useState(initial);
-  const [addOpen, setAddOpen] = useState(false);
+  const [members, setMembers]   = useState(initial);
+  const [addOpen, setAddOpen]   = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const isDemo = useIsDemo();
+
+  // ── Realtime: team_members ────────────────────────────────────────────────
+  useRealtime<TeamMember>({
+    table: "team_members",
+    disabled: isDemo,
+    onInsert: (row) => setMembers((prev) => prev.some((m) => m.id === row.id) ? prev : [...prev, row]),
+    onUpdate: (row) => setMembers((prev) => prev.map((m) => m.id === row.id ? { ...m, ...row } : m)),
+    onDelete: (row) => setMembers((prev) => prev.filter((m) => m.id !== row.id)),
+  });
 
   function handleAdded(m: TeamMember) {
     setMembers((prev) => [...prev, m]);
@@ -38,7 +48,7 @@ export default function TeamPage({ members: initial }: Props) {
       return;
     }
     await fetch(`/api/team-members/${id}`, { method: "DELETE" });
-    setMembers((prev) => prev.filter((m) => m.id !== id));
+    // onSnapshot handles state
     setRemovingId(null);
   }
 

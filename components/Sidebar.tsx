@@ -2,24 +2,25 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart2, LayoutList, Plus, LogOut, Users, UserCircle2 } from "lucide-react";
+import { BarChart2, LayoutList, Plus, LogOut, Users, UserCircle2, UsersRound } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
-import type { Client, Project } from "@/types";
+import type { Client, Project, TeamMember } from "@/types";
 import { StatusIcon, statusMeta } from "@/components/ui/StatusIcon";
 import type { Status } from "@/types";
 
 interface SidebarProps {
   user: Client;
   projects: (Project & { ticket_count: number })[];
+  poc: TeamMember | null;
   isDemo: boolean;
 }
 
 const statuses: Status[] = ["open", "in_progress", "review", "done"];
 
-export default function Sidebar({ user, projects, isDemo }: SidebarProps) {
+export default function Sidebar({ user, projects, poc, isDemo }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
+  const router   = useRouter();
 
   async function handleSignOut() {
     if (isDemo) {
@@ -55,9 +56,14 @@ export default function Sidebar({ user, projects, isDemo }: SidebarProps) {
           <span className="w-7 h-7 rounded-md bg-accent flex items-center justify-center">
             <span className="text-white text-xs font-bold">N</span>
           </span>
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-[13px] font-semibold text-foreground leading-tight">Nerdshouse</p>
             <p className="text-[11px] text-muted">Client Portal</p>
+          </div>
+          {/* Live indicator */}
+          <div className="flex items-center gap-1" title="Live updates active">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-[10px] text-green-600 font-medium">Live</span>
           </div>
         </div>
       </div>
@@ -76,6 +82,8 @@ export default function Sidebar({ user, projects, isDemo }: SidebarProps) {
           <>
             <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2 mt-1">My Work</p>
             {navLink("/", LayoutList, "My Requests")}
+            {/* Primary clients (not contacts) can manage their own team */}
+            {!user.is_contact && navLink("/my-team", UsersRound, "My Team")}
           </>
         )}
 
@@ -117,6 +125,26 @@ export default function Sidebar({ user, projects, isDemo }: SidebarProps) {
             ))}
           </div>
         </div>
+
+        {/* POC section — client role only */}
+        {!user.is_admin && (
+          <div className="pt-4">
+            <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Your POC</p>
+            {poc ? (
+              <div className="px-3 py-2 rounded-lg bg-gray-50/80">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <div className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center text-[10px] font-semibold text-accent flex-shrink-0">
+                    {poc.avatar_initials}
+                  </div>
+                  <span className="text-[12px] font-medium text-foreground truncate">{poc.name}</span>
+                </div>
+                <p className="text-[11px] text-muted truncate pl-8">{poc.email}</p>
+              </div>
+            ) : (
+              <p className="px-3 text-[12px] text-muted/60 italic">No POC assigned yet</p>
+            )}
+          </div>
+        )}
       </nav>
 
       {/* User */}

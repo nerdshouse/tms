@@ -10,11 +10,10 @@ const SESSION_EXPIRES_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
  * Exchange a fresh Google ID token for an httpOnly session cookie.
  *
  * Access control on first sign-in:
- *   1. Email found in `team_members` → admin access (creates/updates clients/{uid} with is_admin:true)
- *   2. Email found in `clients`       → client access (migrates old doc to clients/{uid} if needed)
- *   3. Neither                        → 403 access denied
- *
- * Subsequent sign-ins just verify the session cookie (handled by middleware).
+ *   1. Email found in `team_members`       → admin access
+ *   2. Email found in `clients`            → client access (migrates old doc to UID if needed)
+ *   3. Email found in any contacts sub-col → contact access (sub-user of a client)
+ *   4. None of the above                   → 403 access denied
  */
 export async function POST(request: Request) {
   const { idToken } = await request.json() as { idToken?: string };
@@ -36,17 +35,22 @@ export async function POST(request: Request) {
 
   if (!clientSnap.exists) {
     // ── 2. First sign-in: determine access level ────────────────────────────
-    const [teamSnap, existingClientSnap] = await Promise.all([
+    const [teamSnap, existingClientSnap, contactsSnap] = await Promise.all([
       adminDb.collection("team_members").where("email", "==", email).limit(1).get(),
       adminDb.collection("clients").where("email", "==", email).limit(1).get(),
+      adminDb.collectionGroup("contacts").where("email", "==", email).limit(1).get(),
     ]);
 
-    const isTeamMember = !teamSnap.empty;
-    const isClient     = !existingClientSnap.empty;
+    const isTeamMember     = !teamSnap.empty;
+    const isExistingClient = !existingClientSnap.empty;
+    const isContact        = !contactsSnap.empty;
 
-    if (!isTeamMember && !isClient) {
+    if (!isTeamMember && !isExistingClient && !isContact) {
       return NextResponse.json(
-        { error: "access_denied", message: "No account found for this email. Contact Nerdshouse to get access." },
+        {
+          error:   "access_denied",
+          message: "Access not granted. Contact Nerdshouse at hello@nerdshouse.com",
+        },
         { status: 403 }
       );
     }
@@ -54,7 +58,6 @@ export async function POST(request: Request) {
     const now = admin.firestore.FieldValue.serverTimestamp();
 
     if (isTeamMember) {
-      // Admin: create clients/{uid} from team_members data
       const tm = teamSnap.docs[0].data();
       await clientRef.set({
         name:       tm.name ?? googleName ?? email.split("@")[0],
@@ -66,8 +69,8 @@ export async function POST(request: Request) {
         created_at: now,
       });
       await adminAuth.setCustomUserClaims(uid, { is_admin: true });
-    } else {
-      // Client: migrate existing doc (created by adminAuth.createUser earlier) to new UID
+
+    } else if (isExistingClient) {
       const existingData = existingClientSnap.docs[0].data();
       const oldDocId     = existingClientSnap.docs[0].id;
 
@@ -77,16 +80,40 @@ export async function POST(request: Request) {
         created_at: existingData.created_at ?? now,
       });
 
-      // Remove old doc if it was keyed by a different UID
       if (oldDocId !== uid) {
         await adminDb.collection("clients").doc(oldDocId).delete();
       }
-
       await adminAuth.setCustomUserClaims(uid, { is_admin: false });
+
+    } else {
+      // Contact: create client doc linked to parent
+      const contactDoc       = contactsSnap.docs[0];
+      const parentClientId   = contactDoc.ref.parent.parent!.id;
+      const parentClientSnap = await adminDb.collection("clients").doc(parentClientId).get();
+      const parentData       = parentClientSnap.exists ? parentClientSnap.data()! : {};
+
+      await clientRef.set({
+        name:             googleName ?? email.split("@")[0],
+        email,
+        company:          parentData.company ?? "",
+        is_admin:         false,
+        is_contact:       true,
+        parent_client_id: parentClientId,
+        status:           "active",
+        avatar_url:       picture ?? null,
+        created_at:       now,
+      });
+      await adminAuth.setCustomUserClaims(uid, { is_admin: false });
+      // Mark contact as active
+      await contactDoc.ref.update({ status: "active" });
     }
   }
 
-  // ── 3. Issue session cookie ───────────────────────────────────────────────
+  // ── 3. Determine role for the role hint cookie ────────────────────────────
+  const freshData = clientSnap.exists ? clientSnap.data() : (await clientRef.get()).data();
+  const isAdmin   = freshData?.is_admin === true;
+
+  // ── 4. Issue session cookie ───────────────────────────────────────────────
   try {
     const sessionCookie = await adminAuth.createSessionCookie(idToken, {
       expiresIn: SESSION_EXPIRES_MS,
@@ -95,6 +122,14 @@ export async function POST(request: Request) {
     const response = NextResponse.json({ ok: true });
     response.cookies.set("__session", sessionCookie, {
       httpOnly: true,
+      secure:   process.env.NODE_ENV === "production",
+      maxAge:   SESSION_EXPIRES_MS / 1000,
+      path:     "/",
+      sameSite: "lax",
+    });
+    // Non-secret role hint for middleware fast redirects (not a security boundary)
+    response.cookies.set("user_role", isAdmin ? "admin" : "client", {
+      httpOnly: false,
       secure:   process.env.NODE_ENV === "production",
       maxAge:   SESSION_EXPIRES_MS / 1000,
       path:     "/",
@@ -111,5 +146,6 @@ export async function POST(request: Request) {
 export async function DELETE() {
   const response = NextResponse.json({ ok: true });
   response.cookies.set("__session", "", { maxAge: 0, path: "/" });
+  response.cookies.set("user_role", "", { maxAge: 0, path: "/" });
   return response;
 }

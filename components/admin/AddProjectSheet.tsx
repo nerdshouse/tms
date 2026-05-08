@@ -19,10 +19,11 @@ const PRESET_COLORS = [
 const field = "w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition";
 
 export default function AddProjectSheet({ client, onSuccess, onClose }: Props) {
-  const [name, setName] = useState("");
-  const [color, setColor] = useState(PRESET_COLORS[0]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [name, setName]               = useState("");
+  const [description, setDescription] = useState("");
+  const [color, setColor]             = useState(PRESET_COLORS[0]);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState("");
   const isDemo = useIsDemo();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -32,12 +33,13 @@ export default function AddProjectSheet({ client, onSuccess, onClose }: Props) {
 
     if (isDemo) {
       const fake: Project = {
-        id: `proj-new-${Date.now()}`,
+        id:          `proj-new-${Date.now()}`,
         name,
-        client_id: client.id,
+        description: description || undefined,
+        client_id:   client.id,
         color,
-        created_at: new Date().toISOString(),
-        clients: { name: client.name, company: client.company },
+        created_at:  new Date().toISOString(),
+        clients:     { name: client.name, company: client.company },
       };
       onSuccess(fake);
       setLoading(false);
@@ -48,7 +50,7 @@ export default function AddProjectSheet({ client, onSuccess, onClose }: Props) {
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, client_id: client.id, color }),
+        body: JSON.stringify({ name, client_id: client.id, color, description }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to add project");
@@ -69,6 +71,17 @@ export default function AddProjectSheet({ client, onSuccess, onClose }: Props) {
       <div>
         <label className="block text-[12px] font-medium text-foreground mb-1.5">Project name <span className="text-red-500">*</span></label>
         <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Platform v2" className={field} />
+      </div>
+
+      <div>
+        <label className="block text-[12px] font-medium text-foreground mb-1.5">Description</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="What is this project about?"
+          rows={3}
+          className={`${field} resize-none`}
+        />
       </div>
 
       <div>

@@ -6,6 +6,8 @@ import { Plus, Building2, Ticket } from "lucide-react";
 import Sheet from "@/components/ui/Sheet";
 import AddClientSheet from "@/components/admin/AddClientSheet";
 import AddProjectSheet from "@/components/admin/AddProjectSheet";
+import { useRealtime } from "@/lib/use-realtime";
+import { useIsDemo } from "@/lib/demo-context";
 import type { Client, Project } from "@/types";
 
 interface Props {
@@ -15,19 +17,38 @@ interface Props {
 }
 
 export default function ClientsGrid({ clients: initial, projects: initialProjects, ticketCounts: initialCounts }: Props) {
-  const [clients, setClients] = useState(initial);
-  const [projects, setProjects] = useState(initialProjects);
-  const [ticketCounts] = useState(initialCounts);
+  const [clients, setClients]             = useState(initial);
+  const [projects, setProjects]           = useState(initialProjects);
+  const [ticketCounts]                    = useState(initialCounts);
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [addProjectFor, setAddProjectFor] = useState<Client | null>(null);
+  const isDemo = useIsDemo();
+
+  // ── Realtime: clients collection ─────────────────────────────────────────
+  useRealtime<Client>({
+    table: "clients",
+    disabled: isDemo,
+    onInsert: (row) => setClients((prev) => prev.some((c) => c.id === row.id) ? prev : [row, ...prev]),
+    onUpdate: (row) => setClients((prev) => prev.map((c) => c.id === row.id ? { ...c, ...row } : c)),
+    onDelete: (row) => setClients((prev) => prev.filter((c) => c.id !== row.id)),
+  });
+
+  // ── Realtime: projects (all, admin view) ──────────────────────────────────
+  useRealtime<Project>({
+    table: "projects",
+    disabled: isDemo,
+    onInsert: (row) => setProjects((prev) => prev.some((p) => p.id === row.id) ? prev : [...prev, row]),
+    onUpdate: (row) => setProjects((prev) => prev.map((p) => p.id === row.id ? { ...p, ...row } : p)),
+    onDelete: (row) => setProjects((prev) => prev.filter((p) => p.id !== row.id)),
+  });
 
   function handleClientAdded(client: Client) {
     setClients((prev) => [client, ...prev]);
     setAddClientOpen(false);
   }
 
-  function handleProjectAdded(project: Project) {
-    setProjects((prev) => [...prev, project]);
+  // onSnapshot handles state update; just close the sheet
+  function handleProjectAdded() {
     setAddProjectFor(null);
   }
 
@@ -123,12 +144,10 @@ export default function ClientsGrid({ clients: initial, projects: initialProject
         })}
       </div>
 
-      {/* Add client sheet */}
       <Sheet open={addClientOpen} onClose={() => setAddClientOpen(false)} title="Add Client">
         <AddClientSheet onSuccess={handleClientAdded} onClose={() => setAddClientOpen(false)} />
       </Sheet>
 
-      {/* Add project sheet */}
       <Sheet open={!!addProjectFor} onClose={() => setAddProjectFor(null)} title="Add Project">
         {addProjectFor && (
           <AddProjectSheet

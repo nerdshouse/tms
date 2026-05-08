@@ -104,3 +104,28 @@ export async function sendTeamInviteEmail(params: {
     `,
   });
 }
+
+export async function sendContactInviteEmail(params: {
+  name: string;
+  email: string;
+  company: string;
+}) {
+  const loginUrl = `${APP_URL}/login`;
+
+  await getResend().emails.send({
+    from: FROM,
+    to: params.email,
+    subject: `You've been given access to the Nerdshouse portal`,
+    html: `
+      <div style="font-family: Inter, sans-serif; max-width: 560px; color: #1a1a1a;">
+        <h2 style="margin-bottom: 4px;">You've been invited to the Nerdshouse Portal</h2>
+        <p style="color: #6b7280; margin-top: 0;">Hi ${params.name},</p>
+        <p style="font-size: 14px;">You've been given access to the Nerdshouse portal by <strong>${params.company}</strong>. Sign in with your Google account to get started.</p>
+        <a href="${loginUrl}" style="display: inline-block; background: #4a4fe0; color: white; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 500;">
+          Sign In →
+        </a>
+        <p style="font-size: 12px; color: #9ca3af; margin-top: 24px;">Nerdshouse Technologies LLP</p>
+      </div>
+    `,
+  });
+}

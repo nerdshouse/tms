@@ -2,43 +2,69 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Plus, Trash2, Mail, Building2 } from "lucide-react";
+import { ChevronLeft, Plus, Trash2, Mail, Building2, UserCheck } from "lucide-react";
 import { useIsDemo } from "@/lib/demo-context";
 import Sheet from "@/components/ui/Sheet";
 import AddProjectSheet from "@/components/admin/AddProjectSheet";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
 import { formatIST } from "@/lib/utils";
-import type { Client, Project, Ticket } from "@/types";
+import { useRealtime } from "@/lib/use-realtime";
+import type { Client, Project, Ticket, TeamMember } from "@/types";
 
 interface Props {
   client: Client;
   projects: Project[];
   tickets: Ticket[];
+  teamMembers: TeamMember[];
 }
 
-export default function ClientDetail({ client, projects: initialProjects, tickets }: Props) {
-  const [projects, setProjects] = useState(initialProjects);
+export default function ClientDetail({ client, projects: initialProjects, tickets, teamMembers }: Props) {
+  const [projects, setProjects]             = useState(initialProjects);
   const [addProjectOpen, setAddProjectOpen] = useState(false);
-  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [removingId, setRemovingId]         = useState<string | null>(null);
+  const [pocId, setPocId]                   = useState(client.poc_id ?? "");
+  const [savingPoc, setSavingPoc]           = useState(false);
   const isDemo = useIsDemo();
 
-  function handleProjectAdded(p: Project) {
-    setProjects((prev) => [...prev, p]);
+  // ── Realtime: projects scoped to this client ──────────────────────────────
+  useRealtime<Project>({
+    table: "projects",
+    filter: { column: "client_id", value: client.id },
+    disabled: isDemo,
+    onInsert: (row) => setProjects((prev) => prev.some((p) => p.id === row.id) ? prev : [...prev, row]),
+    onUpdate: (row) => setProjects((prev) => prev.map((p) => p.id === row.id ? { ...p, ...row } : p)),
+    onDelete: (row) => setProjects((prev) => prev.filter((p) => p.id !== row.id)),
+  });
+
+  // onSnapshot handles state; just close the sheet
+  function handleProjectAdded() {
     setAddProjectOpen(false);
   }
 
   async function removeProject(id: string) {
     setRemovingId(id);
-    if (isDemo) {
-      setProjects((prev) => prev.filter((p) => p.id !== id));
-      setRemovingId(null);
-      return;
+    if (!isDemo) {
+      await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      // onSnapshot will remove it from state
     }
-    await fetch(`/api/projects/${id}`, { method: "DELETE" });
-    setProjects((prev) => prev.filter((p) => p.id !== id));
     setRemovingId(null);
   }
+
+  async function savePoc(value: string) {
+    setSavingPoc(true);
+    if (!isDemo) {
+      await fetch(`/api/clients/${client.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ poc_id: value || null }),
+      });
+    }
+    setPocId(value);
+    setSavingPoc(false);
+  }
+
+  const poc = teamMembers.find((m) => m.id === pocId);
 
   return (
     <div className="p-6">
@@ -50,7 +76,6 @@ export default function ClientDetail({ client, projects: initialProjects, ticket
       <div className="flex gap-6">
         {/* Main */}
         <div className="flex-1 min-w-0 space-y-5">
-          {/* Recent tickets */}
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
               <h2 className="text-[13px] font-semibold text-foreground">Tickets ({tickets.length})</h2>
@@ -120,6 +145,36 @@ export default function ClientDetail({ client, projects: initialProjects, ticket
             </div>
           </div>
 
+          {/* POC assignment */}
+          <div className="bg-card border border-border rounded-xl p-4">
+            <div className="flex items-center gap-1.5 mb-3">
+              <UserCheck size={13} className="text-muted" />
+              <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">Point of Contact</h3>
+            </div>
+            {poc && (
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center text-[10px] font-semibold text-accent flex-shrink-0">
+                  {poc.avatar_initials}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[12px] font-medium text-foreground truncate">{poc.name}</p>
+                  <p className="text-[11px] text-muted truncate">{poc.email}</p>
+                </div>
+              </div>
+            )}
+            <select
+              value={pocId}
+              onChange={(e) => savePoc(e.target.value)}
+              disabled={savingPoc}
+              className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition disabled:opacity-60"
+            >
+              <option value="">— No POC —</option>
+              {teamMembers.filter((m) => m.status === "active").map((m) => (
+                <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
+              ))}
+            </select>
+          </div>
+
           {/* Projects */}
           <div className="bg-card border border-border rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
@@ -135,7 +190,12 @@ export default function ClientDetail({ client, projects: initialProjects, ticket
                 {projects.map((p) => (
                   <li key={p.id} className="flex items-center gap-2 group">
                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
-                    <span className="text-[12px] text-foreground flex-1 truncate">{p.name}</span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[12px] text-foreground truncate block">{p.name}</span>
+                      {p.description && (
+                        <span className="text-[11px] text-muted truncate block">{p.description}</span>
+                      )}
+                    </div>
                     <button
                       onClick={() => removeProject(p.id)}
                       disabled={removingId === p.id}
