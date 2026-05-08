@@ -1,7 +1,11 @@
 import { Resend } from "resend";
 import type { Status } from "@/types";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy — only instantiated when an email function is called, not at module load time
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
+
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "team@nerdshouse.in";
 const FROM = "Nerdshouse Portal <noreply@nerdshouse.in>";
@@ -24,7 +28,7 @@ export async function sendTicketCreatedEmail(params: {
 }) {
   const url = `${APP_URL}/tickets/${params.ticketId}`;
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to: ADMIN_EMAIL,
     subject: `[${params.priority}] New ${params.type}: ${params.title}`,
@@ -57,7 +61,7 @@ export async function sendStatusChangedEmail(params: {
   const url = `${APP_URL}/tickets/${params.ticketId}`;
   const statusLabel = STATUS_LABELS[params.newStatus];
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to: params.clientEmail,
     subject: `Update on your request: ${params.title}`,
@@ -83,7 +87,7 @@ export async function sendTeamInviteEmail(params: {
 }) {
   const loginUrl = `${APP_URL}/login`;
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to: params.email,
     subject: `You've been added to the Nerdshouse team as ${params.role}`,
