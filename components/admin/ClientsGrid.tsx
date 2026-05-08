@@ -47,8 +47,9 @@ export default function ClientsGrid({ clients: initial, projects: initialProject
     setAddClientOpen(false);
   }
 
-  // onSnapshot handles state update; just close the sheet
-  function handleProjectAdded() {
+  function handleProjectAdded(project: Project) {
+    // Update state immediately; onSnapshot deduplicates if it also fires
+    setProjects((prev) => prev.some((p) => p.id === project.id) ? prev : [...prev, project]);
     setAddProjectFor(null);
   }
 

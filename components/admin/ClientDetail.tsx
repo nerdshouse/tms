@@ -37,8 +37,9 @@ export default function ClientDetail({ client, projects: initialProjects, ticket
     onDelete: (row) => setProjects((prev) => prev.filter((p) => p.id !== row.id)),
   });
 
-  // onSnapshot handles state; just close the sheet
-  function handleProjectAdded() {
+  function handleProjectAdded(project: Project) {
+    // Update state immediately; onSnapshot deduplicates if it also fires
+    setProjects((prev) => prev.some((p) => p.id === project.id) ? prev : [...prev, project]);
     setAddProjectOpen(false);
   }
 
