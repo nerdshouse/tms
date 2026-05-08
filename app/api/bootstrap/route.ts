@@ -4,22 +4,13 @@ import admin from "firebase-admin";
 
 /**
  * One-time admin bootstrap.
- * Hit GET /api/bootstrap?secret=<BOOTSTRAP_SECRET> to seed the first admin.
- * Idempotent — safe to call multiple times.
- * Disable after first use by removing BOOTSTRAP_SECRET from env vars.
+ *
+ * - If team_members collection is EMPTY: runs freely (true first-run).
+ * - If team_members already has docs: requires ?secret=BOOTSTRAP_SECRET.
+ *
+ * Safe to call multiple times — idempotent.
  */
 export async function GET(request: Request) {
-  const secret = process.env.BOOTSTRAP_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: "Bootstrap not configured" }, { status: 403 });
-  }
-
-  const url    = new URL(request.url);
-  const given  = url.searchParams.get("secret");
-  if (given !== secret) {
-    return NextResponse.json({ error: "Invalid secret" }, { status: 403 });
-  }
-
   const ADMIN_EMAIL = "axit@nerdshouse.com";
   const ADMIN_NAME  = "Axit Mehta";
 
@@ -31,7 +22,20 @@ export async function GET(request: Request) {
     .get();
 
   if (!existing.empty) {
-    return NextResponse.json({ ok: true, message: "Already seeded", email: ADMIN_EMAIL });
+    return NextResponse.json({ ok: true, message: "Already seeded. Sign in with Google at /login." });
+  }
+
+  // Check if any team members exist at all
+  const anyMember = await adminDb.collection("team_members").limit(1).get();
+  const isFirstRun = anyMember.empty;
+
+  if (!isFirstRun) {
+    // Existing team — require secret
+    const secret = process.env.BOOTSTRAP_SECRET;
+    const given  = new URL(request.url).searchParams.get("secret");
+    if (!secret || given !== secret) {
+      return NextResponse.json({ error: "Requires ?secret=BOOTSTRAP_SECRET" }, { status: 403 });
+    }
   }
 
   const now = admin.firestore.FieldValue.serverTimestamp();
@@ -46,6 +50,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    message: `Seeded admin: ${ADMIN_EMAIL}. Now sign in with Google.`,
+    message: `Done! ${ADMIN_EMAIL} is now an admin. Sign in at /login with Google.`,
   });
 }
