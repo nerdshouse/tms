@@ -1,21 +1,9 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
 import { sendTeamInviteEmail } from "@/lib/email";
 import admin from "firebase-admin";
 
 export async function POST(request: Request) {
-  // Demo mode
-  const demoUser = cookies().get("demo_user")?.value;
-  if (demoUser === "admin") {
-    const body = await request.json();
-    const initials = body.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
-    return NextResponse.json({
-      id: `demo-tm-${Date.now()}`, ...body, avatar_initials: initials, status: "active",
-      open_ticket_count: 0, created_at: new Date().toISOString(),
-    });
-  }
-
   const me = await getSessionClient();
   if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

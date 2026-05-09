@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Plus, Trash2, Loader2, Mail } from "lucide-react";
-import { useIsDemo } from "@/lib/demo-context";
 import type { ClientContact } from "@/types";
 
 interface Props {
@@ -21,7 +20,6 @@ export default function ClientTeam({ contacts: initial, company }: Props) {
   const [loading, setLoading]     = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [error, setError]         = useState("");
-  const isDemo = useIsDemo();
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -49,9 +47,7 @@ export default function ClientTeam({ contacts: initial, company }: Props) {
 
   async function removeContact(id: string) {
     setRemovingId(id);
-    if (!isDemo) {
-      await fetch(`/api/me/contacts/${id}`, { method: "DELETE" });
-    }
+    await fetch(`/api/me/contacts/${id}`, { method: "DELETE" });
     setContacts((prev) => prev.filter((c) => c.id !== id));
     setRemovingId(null);
   }

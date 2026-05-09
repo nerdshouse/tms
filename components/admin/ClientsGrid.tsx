@@ -7,7 +7,6 @@ import Sheet from "@/components/ui/Sheet";
 import AddClientSheet from "@/components/admin/AddClientSheet";
 import AddProjectSheet from "@/components/admin/AddProjectSheet";
 import { useRealtime } from "@/lib/use-realtime";
-import { useIsDemo } from "@/lib/demo-context";
 import type { Client, Project } from "@/types";
 
 interface Props {
@@ -22,12 +21,10 @@ export default function ClientsGrid({ clients: initial, projects: initialProject
   const [ticketCounts]                    = useState(initialCounts);
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [addProjectFor, setAddProjectFor] = useState<Client | null>(null);
-  const isDemo = useIsDemo();
 
   // ── Realtime: clients collection ─────────────────────────────────────────
   useRealtime<Client>({
     table: "clients",
-    disabled: isDemo,
     onInsert: (row) => setClients((prev) => prev.some((c) => c.id === row.id) ? prev : [row, ...prev]),
     onUpdate: (row) => setClients((prev) => prev.map((c) => c.id === row.id ? { ...c, ...row } : c)),
     onDelete: (row) => setClients((prev) => prev.filter((c) => c.id !== row.id)),
@@ -36,7 +33,6 @@ export default function ClientsGrid({ clients: initial, projects: initialProject
   // ── Realtime: projects (all, admin view) ──────────────────────────────────
   useRealtime<Project>({
     table: "projects",
-    disabled: isDemo,
     onInsert: (row) => setProjects((prev) => prev.some((p) => p.id === row.id) ? prev : [...prev, row]),
     onUpdate: (row) => setProjects((prev) => prev.map((p) => p.id === row.id ? { ...p, ...row } : p)),
     onDelete: (row) => setProjects((prev) => prev.filter((p) => p.id !== row.id)),

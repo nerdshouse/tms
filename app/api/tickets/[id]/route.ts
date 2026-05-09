@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
 import { sendStatusChangedEmail } from "@/lib/email";
 import admin from "firebase-admin";
@@ -9,13 +8,6 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  // Demo mode
-  const demoUser = cookies().get("demo_user")?.value;
-  if (demoUser === "admin") {
-    const body = await request.json();
-    return NextResponse.json({ id: params.id, ...body });
-  }
-
   const me = await getSessionClient();
   if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

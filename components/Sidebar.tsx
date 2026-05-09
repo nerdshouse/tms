@@ -13,20 +13,15 @@ interface SidebarProps {
   user: Client;
   projects: (Project & { ticket_count: number })[];
   poc: TeamMember | null;
-  isDemo: boolean;
 }
 
 const statuses: Status[] = ["open", "in_progress", "review", "done"];
 
-export default function Sidebar({ user, projects, poc, isDemo }: SidebarProps) {
+export default function Sidebar({ user, projects, poc }: SidebarProps) {
   const pathname = usePathname();
   const router   = useRouter();
 
   async function handleSignOut() {
-    if (isDemo) {
-      window.location.href = "/api/demo-logout";
-      return;
-    }
     await signOut(auth);
     await fetch("/api/session", { method: "DELETE" });
     router.push("/login");

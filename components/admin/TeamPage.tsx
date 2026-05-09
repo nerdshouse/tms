@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { useIsDemo } from "@/lib/demo-context";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -24,12 +23,10 @@ export default function TeamPage({ members: initial }: Props) {
   const [members, setMembers]   = useState(initial);
   const [addOpen, setAddOpen]   = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
-  const isDemo = useIsDemo();
 
   // ── Realtime: team_members ────────────────────────────────────────────────
   useRealtime<TeamMember>({
     table: "team_members",
-    disabled: isDemo,
     onInsert: (row) => setMembers((prev) => prev.some((m) => m.id === row.id) ? prev : [...prev, row]),
     onUpdate: (row) => setMembers((prev) => prev.map((m) => m.id === row.id ? { ...m, ...row } : m)),
     onDelete: (row) => setMembers((prev) => prev.filter((m) => m.id !== row.id)),
@@ -42,13 +39,7 @@ export default function TeamPage({ members: initial }: Props) {
 
   async function removeMember(id: string) {
     setRemovingId(id);
-    if (isDemo) {
-      setMembers((prev) => prev.filter((m) => m.id !== id));
-      setRemovingId(null);
-      return;
-    }
     await fetch(`/api/team-members/${id}`, { method: "DELETE" });
-    // onSnapshot handles state
     setRemovingId(null);
   }
 

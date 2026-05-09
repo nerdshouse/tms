@@ -8,7 +8,6 @@ import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
 import type { Ticket, Status } from "@/types";
 import { formatIST } from "@/lib/utils";
 import { useRealtime } from "@/lib/use-realtime";
-import { useIsDemo } from "@/lib/demo-context";
 
 interface IssueTableProps {
   tickets: Ticket[];
@@ -29,12 +28,10 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
   const [tickets, setTickets] = useState(initialTickets);
   const [activeStatus, setActiveStatus] = useState(initialStatus);
   const [search, setSearch] = useState(initialSearch);
-  const isDemo = useIsDemo();
 
   useRealtime<Ticket>({
     table: "tickets",
     events: ["INSERT", "UPDATE"],
-    disabled: isDemo,
     onInsert: (row) => setTickets((prev) => [row, ...prev]),
     onUpdate: (row) =>
       setTickets((prev) =>

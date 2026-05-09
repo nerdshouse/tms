@@ -9,7 +9,6 @@ import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
 import { formatIST, formatISTShort } from "@/lib/utils";
 import type { Ticket, TicketUpdate, Client, Status, TeamMember } from "@/types";
 import { useRealtime } from "@/lib/use-realtime";
-import { useIsDemo } from "@/lib/demo-context";
 
 interface TicketDetailProps {
   ticket: Ticket;
@@ -27,7 +26,6 @@ const STATUS_OPTIONS: { value: Status; label: string }[] = [
 
 export default function TicketDetail({ ticket, updates, currentClient, teamMembers }: TicketDetailProps) {
   const router = useRouter();
-  const isDemo = useIsDemo();
   const [message, setMessage] = useState("");
   const [newStatus, setNewStatus] = useState<Status>(ticket.status);
   const [newAssigneeId, setNewAssigneeId] = useState<string>(ticket.assignee_id ?? "");
@@ -41,7 +39,6 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
     table: "ticket_updates",
     filter: { column: "ticket_id", value: ticket.id },
     events: ["INSERT"],
-    disabled: isDemo,
     onInsert: (row) =>
       setLocalUpdates((prev) =>
         prev.some((u) => u.id === row.id) ? prev : [...prev, row]
@@ -53,7 +50,6 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
     table: "tickets",
     filter: { column: "id", value: ticket.id },
     events: ["UPDATE"],
-    disabled: isDemo,
     onUpdate: (row) => {
       setLocalTicket((t) => ({ ...t, ...row }));
       setNewStatus(row.status);

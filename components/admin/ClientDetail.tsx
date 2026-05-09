@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Plus, Trash2, Mail, Building2, UserCheck } from "lucide-react";
-import { useIsDemo } from "@/lib/demo-context";
 import Sheet from "@/components/ui/Sheet";
 import AddProjectSheet from "@/components/admin/AddProjectSheet";
 import { StatusIcon } from "@/components/ui/StatusIcon";
@@ -25,13 +24,11 @@ export default function ClientDetail({ client, projects: initialProjects, ticket
   const [removingId, setRemovingId]         = useState<string | null>(null);
   const [pocId, setPocId]                   = useState(client.poc_id ?? "");
   const [savingPoc, setSavingPoc]           = useState(false);
-  const isDemo = useIsDemo();
 
   // ── Realtime: projects scoped to this client ──────────────────────────────
   useRealtime<Project>({
     table: "projects",
     filter: { column: "client_id", value: client.id },
-    disabled: isDemo,
     onInsert: (row) => setProjects((prev) => prev.some((p) => p.id === row.id) ? prev : [...prev, row]),
     onUpdate: (row) => setProjects((prev) => prev.map((p) => p.id === row.id ? { ...p, ...row } : p)),
     onDelete: (row) => setProjects((prev) => prev.filter((p) => p.id !== row.id)),
@@ -45,22 +42,17 @@ export default function ClientDetail({ client, projects: initialProjects, ticket
 
   async function removeProject(id: string) {
     setRemovingId(id);
-    if (!isDemo) {
-      await fetch(`/api/projects/${id}`, { method: "DELETE" });
-      // onSnapshot will remove it from state
-    }
+    await fetch(`/api/projects/${id}`, { method: "DELETE" });
     setRemovingId(null);
   }
 
   async function savePoc(value: string) {
     setSavingPoc(true);
-    if (!isDemo) {
-      await fetch(`/api/clients/${client.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ poc_id: value || null }),
-      });
-    }
+    await fetch(`/api/clients/${client.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ poc_id: value || null }),
+    });
     setPocId(value);
     setSavingPoc(false);
   }

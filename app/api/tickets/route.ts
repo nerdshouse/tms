@@ -1,17 +1,9 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
 import { sendTicketCreatedEmail } from "@/lib/email";
 import admin from "firebase-admin";
 
 export async function POST(request: Request) {
-  // Demo mode
-  const demoUser = cookies().get("demo_user")?.value;
-  if (demoUser === "client") {
-    const formData = await request.formData();
-    return NextResponse.json({ id: `demo-ticket-${Date.now()}`, title: formData.get("title") });
-  }
-
   const client = await getSessionClient();
   if (!client) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

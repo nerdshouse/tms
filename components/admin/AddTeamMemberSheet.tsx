@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { useIsDemo } from "@/lib/demo-context";
 import type { TeamMember, TeamRole } from "@/types";
 
 interface Props {
@@ -17,27 +16,11 @@ export default function AddTeamMemberSheet({ onSuccess, onClose }: Props) {
   const [form, setForm] = useState({ name: "", email: "", role: "Developer" as TeamRole });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const isDemo = useIsDemo();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
-
-    if (isDemo) {
-      const initials = form.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
-      const fake: TeamMember = {
-        id: `tm-new-${Date.now()}`,
-        ...form,
-        avatar_initials: initials,
-        status: "active",
-        created_at: new Date().toISOString(),
-        open_ticket_count: 0,
-      };
-      onSuccess(fake);
-      setLoading(false);
-      return;
-    }
 
     try {
       const res = await fetch("/api/team-members", {

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
 import admin from "firebase-admin";
 
@@ -7,21 +6,6 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  // Demo mode
-  const demoUser = cookies().get("demo_user")?.value;
-  if (demoUser === "admin" || demoUser === "client") {
-    const { message } = await request.json();
-    const fake = {
-      id:          `demo-update-${Date.now()}`,
-      ticket_id:   params.id,
-      message,
-      author_type: demoUser === "admin" ? "team" : "client",
-      author_name: demoUser === "admin" ? "Axit Mehta" : "Priya Sharma",
-      created_at:  new Date().toISOString(),
-    };
-    return NextResponse.json(fake);
-  }
-
   const client = await getSessionClient();
   if (!client) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

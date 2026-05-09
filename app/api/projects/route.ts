@@ -1,18 +1,8 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
 import admin from "firebase-admin";
 
 export async function POST(request: Request) {
-  const demoUser = cookies().get("demo_user")?.value;
-  if (demoUser === "admin") {
-    const body = await request.json();
-    return NextResponse.json({
-      id: `demo-proj-${Date.now()}`, ...body,
-      color: body.color ?? "#4a4fe0", created_at: new Date().toISOString(),
-    });
-  }
-
   const me = await getSessionClient();
   if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
