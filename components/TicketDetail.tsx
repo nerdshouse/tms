@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, Loader2, Send, Paperclip } from "lucide-react";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
-import { formatIST, formatISTShort } from "@/lib/utils";
+import { formatIST, formatISTShort, formatDate } from "@/lib/utils";
 import type { Ticket, TicketUpdate, Client, Status, TeamMember } from "@/types";
 import { useRealtime } from "@/lib/use-realtime";
 
@@ -27,6 +27,7 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
   const [message, setMessage] = useState("");
   const [newStatus, setNewStatus] = useState<Status>(ticket.status);
   const [newAssigneeId, setNewAssigneeId] = useState<string>(ticket.assignee_id ?? "");
+  const [newDueDate, setNewDueDate] = useState<string>(ticket.due_date ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [localUpdates, setLocalUpdates] = useState(updates);
@@ -79,7 +80,11 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
   }
 
   async function handleAdminUpdate() {
-    if (newStatus === localTicket.status && newAssigneeId === (localTicket.assignee_id ?? "")) return;
+    const unchanged =
+      newStatus === localTicket.status &&
+      newAssigneeId === (localTicket.assignee_id ?? "") &&
+      newDueDate === (localTicket.due_date ?? "");
+    if (unchanged) return;
     setSubmitting(true);
     setError("");
     try {
@@ -89,6 +94,7 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
         body: JSON.stringify({
           status: newStatus,
           assignee_id: newAssigneeId || null,
+          due_date: newDueDate || null,
         }),
       });
       const data = await res.json();
@@ -98,6 +104,7 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
         ...t,
         status: newStatus,
         assignee_id: newAssigneeId || null,
+        due_date: newDueDate || null,
         team_members: assignee ? { name: assignee.name, avatar_initials: assignee.avatar_initials } : undefined,
       }));
     } catch (err: unknown) {
@@ -185,7 +192,9 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
                         )}
                         <span className="text-[11px] text-muted">{formatISTShort(u.created_at)}</span>
                       </div>
-                      <p className="text-[13px] text-foreground leading-relaxed whitespace-pre-wrap bg-gray-50/60 rounded-lg px-3 py-2">
+                      <p className={`text-[13px] text-foreground leading-relaxed whitespace-pre-wrap rounded-lg px-3 py-2 ${
+                        u.author_type === "team" ? "bg-gray-50/60" : "bg-blue-50 border border-blue-100"
+                      }`}>
                         {u.message}
                       </p>
                     </div>
@@ -269,6 +278,14 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
                   </div>
                 </>
               )}
+              {localTicket.due_date && (
+                <div>
+                  <dt className="text-muted text-[11px] mb-0.5">Due Date</dt>
+                  <dd className={`text-[12px] font-medium ${new Date(localTicket.due_date) < new Date() && localTicket.status !== "done" ? "text-red-500" : "text-foreground"}`}>
+                    {formatDate(localTicket.due_date)}
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt className="text-muted text-[11px] mb-0.5">Created</dt>
                 <dd className="text-muted text-[12px]">{formatIST(localTicket.created_at)}</dd>
@@ -310,9 +327,19 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
                 </select>
               </div>
 
+              <div>
+                <label className="block text-[11px] text-muted mb-1">Due Date</label>
+                <input
+                  type="date"
+                  value={newDueDate}
+                  onChange={(e) => setNewDueDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition"
+                />
+              </div>
+
               <button
                 onClick={handleAdminUpdate}
-                disabled={submitting || (newStatus === localTicket.status && newAssigneeId === (localTicket.assignee_id ?? ""))}
+                disabled={submitting || (newStatus === localTicket.status && newAssigneeId === (localTicket.assignee_id ?? "") && newDueDate === (localTicket.due_date ?? ""))}
                 className="w-full py-1.5 text-[12px] font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition disabled:opacity-60"
               >
                 {submitting ? "Saving…" : "Save Changes"}

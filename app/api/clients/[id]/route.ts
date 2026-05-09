@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
+import { logEvent } from "@/lib/log";
 
 export async function PATCH(
   request: Request,
@@ -22,5 +23,17 @@ export async function PATCH(
   }
 
   await adminDb.collection("clients").doc(params.id).update(allowed);
+
+  if ("poc_id" in body) {
+    logEvent({
+      action_type: "poc_assigned",
+      detail:      body.poc_id ? `POC assigned` : `POC removed`,
+      entity_id:   params.id,
+      entity_type: "client",
+      user_id:     me.id,
+      user_name:   me.name,
+    }).catch(console.error);
+  }
+
   return NextResponse.json({ ok: true });
 }

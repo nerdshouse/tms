@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
 import { sendTeamInviteEmail } from "@/lib/email";
+import { logEvent } from "@/lib/log";
 import admin from "firebase-admin";
 
 export async function POST(request: Request) {
@@ -20,6 +21,15 @@ export async function POST(request: Request) {
   });
 
   sendTeamInviteEmail({ name, email, role }).catch(console.error);
+
+  logEvent({
+    action_type: "team_member_added",
+    detail:      `${name} (${role}) added to team`,
+    entity_id:   ref.id,
+    entity_type: "team_member",
+    user_id:     me.id,
+    user_name:   me.name,
+  }).catch(console.error);
 
   return NextResponse.json({
     id: ref.id, name, email, role, avatar_initials: initials, status: "active",

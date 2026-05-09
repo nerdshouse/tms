@@ -61,6 +61,7 @@ export interface Ticket {
   project_id: string | null;
   assignee_id: string | null;
   attachments?: string[];
+  due_date?: string | null;
   created_at: string;
   updated_at: string;
   clients?: Pick<Client, "name" | "company" | "email">;
@@ -84,4 +85,15 @@ export interface ClientContact {
   email: string;
   status: ContactStatus;
   created_at: string;
+}
+
+export interface SystemLog {
+  id: string;
+  timestamp: string;
+  user_id: string | null;
+  user_name: string | null;
+  action_type: string;
+  detail: string;
+  entity_id: string | null;
+  entity_type: string | null;
 }

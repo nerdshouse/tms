@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import IssueTable from "@/components/IssueTable";
-import { getSessionClient, adminDb, docToTicket, effectiveClientId } from "@/lib/firebase/helpers";
-import type { Ticket } from "@/types";
+import { getSessionClient, adminDb, docToTicket, docToTeamMember, effectiveClientId } from "@/lib/firebase/helpers";
+import type { Ticket, TeamMember } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +25,20 @@ export default async function Home({
     q = q.where("status", "==", searchParams.status);
   }
 
-  const snap = await q.get();
+  const queries: Promise<unknown>[] = [q.get()];
+  if (isAdmin) {
+    queries.push(adminDb.collection("team_members").where("status", "==", "active").get());
+  }
+
+  const results = await Promise.all(queries);
+  const snap = results[0] as FirebaseFirestore.QuerySnapshot;
   const tickets: Ticket[] = snap.docs.map(docToTicket);
+
+  let teamMembers: TeamMember[] = [];
+  if (isAdmin && results[1]) {
+    const tmSnap = results[1] as FirebaseFirestore.QuerySnapshot;
+    teamMembers = tmSnap.docs.map(docToTeamMember);
+  }
 
   return (
     <IssueTable
@@ -35,6 +47,7 @@ export default async function Home({
       initialStatus={searchParams.status ?? "all"}
       initialSearch={searchParams.q ?? ""}
       clientId={!isAdmin ? effectiveClientId(client) : undefined}
+      teamMembers={isAdmin ? teamMembers : undefined}
     />
   );
 }

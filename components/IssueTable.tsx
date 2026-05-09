@@ -6,7 +6,7 @@ import { Search, ChevronLeft } from "lucide-react";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
 import type { Ticket, Project, Status } from "@/types";
-import { formatIST } from "@/lib/utils";
+import { formatIST, formatDate } from "@/lib/utils";
 import { useRealtime } from "@/lib/use-realtime";
 
 interface IssueTableProps {
@@ -18,6 +18,8 @@ interface IssueTableProps {
   project?: Project;
   /** Client UID — used to scope realtime subscription for non-admin users */
   clientId?: string;
+  /** Team members list for assignee filter (admin only) */
+  teamMembers?: import("@/types").TeamMember[];
 }
 
 const statusTabs = [
@@ -28,10 +30,11 @@ const statusTabs = [
   { label: "Done",        value: "done" },
 ];
 
-export default function IssueTable({ tickets: initialTickets, isAdmin, initialStatus, initialSearch, project, clientId }: IssueTableProps) {
+export default function IssueTable({ tickets: initialTickets, isAdmin, initialStatus, initialSearch, project, clientId, teamMembers }: IssueTableProps) {
   const [tickets, setTickets] = useState(initialTickets);
   const [activeStatus, setActiveStatus] = useState(initialStatus);
   const [search, setSearch] = useState(initialSearch);
+  const [assigneeFilter, setAssigneeFilter] = useState("");
 
   // Firestore rules only allow clients to query by client_id, not project_id.
   // Admins can use any filter. For project-scoped views, non-admins subscribe
@@ -59,6 +62,7 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
         // When scoped to a project, only show that project's tickets
         if (project && t.project_id !== project.id) return false;
         const matchesStatus = activeStatus === "all" || t.status === activeStatus;
+        const matchesAssignee = !assigneeFilter || t.assignee_id === assigneeFilter;
         const q = search.toLowerCase();
         const matchesSearch =
           !q ||
@@ -67,9 +71,9 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
           t.module.toLowerCase().includes(q) ||
           t.projects?.name?.toLowerCase().includes(q) ||
           (isAdmin && t.clients?.name?.toLowerCase().includes(q));
-        return matchesStatus && matchesSearch;
+        return matchesStatus && matchesAssignee && matchesSearch;
       }),
-    [tickets, activeStatus, search, isAdmin, project]
+    [tickets, activeStatus, assigneeFilter, search, isAdmin, project]
   );
 
   return (
@@ -135,6 +139,18 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
             </button>
           ))}
         </div>
+        {isAdmin && teamMembers && teamMembers.length > 0 && (
+          <select
+            value={assigneeFilter}
+            onChange={(e) => setAssigneeFilter(e.target.value)}
+            className="px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition"
+          >
+            <option value="">All Assignees</option>
+            {teamMembers.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+        )}
         <div className="relative ml-auto">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
           <input
@@ -162,13 +178,14 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-16">Priority</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-28">Status</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-24">Module</th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-24">Due</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-28">Updated</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 9 : 8} className="px-4 py-12 text-center text-muted text-[13px]">
+                <td colSpan={isAdmin ? 10 : 9} className="px-4 py-12 text-center text-muted text-[13px]">
                   No issues found.
                 </td>
               </tr>
@@ -206,6 +223,15 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
                   <td className="px-4 py-3"><PriorityBadge priority={ticket.priority} /></td>
                   <td className="px-4 py-3"><StatusIcon status={ticket.status as Status} showLabel /></td>
                   <td className="px-4 py-3 text-muted">{ticket.module || "—"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {ticket.due_date ? (
+                      <span className={`text-[12px] font-medium ${new Date(ticket.due_date) < new Date() && ticket.status !== "done" ? "text-red-500" : "text-muted"}`}>
+                        {formatDate(ticket.due_date)}
+                      </span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-muted whitespace-nowrap">{formatIST(ticket.updated_at)}</td>
                 </tr>
               ))

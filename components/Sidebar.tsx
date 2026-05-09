@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart2, LayoutList, Plus, LogOut, Users, UserCircle2, UsersRound, FolderOpen } from "lucide-react";
+import { BarChart2, LayoutDashboard, LayoutList, Plus, LogOut, Users, UserCircle2, UsersRound, FolderOpen, ScrollText } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import type { Client, Project, TeamMember } from "@/types";
@@ -64,94 +64,145 @@ export default function Sidebar({ user, projects, poc }: SidebarProps) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 overflow-y-auto">
         {user.is_admin ? (
           <>
             <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2 mt-1">Admin</p>
-            {navLink("/", LayoutList, "All Requests")}
-            {navLink("/projects", FolderOpen, "Projects")}
-            {navLink("/admin/clients", UserCircle2, "Clients")}
-            {navLink("/admin/team", Users, "Team")}
-            {navLink("/analytics", BarChart2, "Analytics")}
+            <div className="space-y-0.5">
+              {navLink("/dashboard", LayoutDashboard, "Dashboard")}
+              {navLink("/", LayoutList, "All Requests")}
+              {navLink("/admin/clients", UserCircle2, "Clients")}
+              {navLink("/admin/team", Users, "Team Members")}
+              {navLink("/analytics", BarChart2, "Analytics")}
+            </div>
+
+            <Link
+              href="/new"
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors mt-1 ${
+                pathname === "/new" ? "bg-accent/10 text-accent" : "text-muted hover:bg-gray-100 hover:text-foreground"
+              }`}
+            >
+              <Plus size={15} />
+              New Request
+            </Link>
+
+            {/* Projects */}
+            {projects.length > 0 && (
+              <div className="pt-4 border-t border-border mt-3">
+                <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Projects</p>
+                <div className="space-y-0.5">
+                  {projects.map((p) => {
+                    const active = pathname === `/projects/${p.id}`;
+                    return (
+                      <Link
+                        key={p.id}
+                        href={`/projects/${p.id}`}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] transition-colors ${
+                          active ? "bg-accent/10 text-accent" : "text-muted hover:bg-gray-100 hover:text-foreground"
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
+                        <span className="flex-1 truncate">{p.name}</span>
+                        <span className="text-[10px] tabular-nums opacity-60">{p.ticket_count}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Status */}
+            <div className="pt-4 border-t border-border mt-3">
+              <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Status</p>
+              <div className="space-y-0.5">
+                {statuses.map((s) => (
+                  <div key={s} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] text-muted">
+                    <StatusIcon status={s} />
+                    <span>{statusMeta[s].label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* System Logs */}
+            <div className="pt-4 border-t border-border mt-3">
+              {navLink("/admin/logs", ScrollText, "System Logs")}
+            </div>
           </>
         ) : (
           <>
             <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2 mt-1">My Work</p>
-            {navLink("/", LayoutList, "My Requests")}
-            {navLink("/projects", FolderOpen, "Projects")}
-            {/* Primary clients (not contacts) can manage their own team */}
-            {!user.is_contact && navLink("/my-team", UsersRound, "My Team")}
-          </>
-        )}
-
-        <Link
-          href="/new"
-          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors mt-1 ${
-            pathname === "/new" ? "bg-accent/10 text-accent" : "text-muted hover:bg-gray-100 hover:text-foreground"
-          }`}
-        >
-          <Plus size={15} />
-          New Request
-        </Link>
-
-        {/* Projects quick-links */}
-        {projects.length > 0 && (
-          <div className="pt-4">
-            <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Projects</p>
             <div className="space-y-0.5">
-              {projects.map((p) => {
-                const active = pathname === `/projects/${p.id}`;
-                return (
-                  <Link
-                    key={p.id}
-                    href={`/projects/${p.id}`}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] transition-colors ${
-                      active
-                        ? "bg-accent/10 text-accent"
-                        : "text-muted hover:bg-gray-100 hover:text-foreground"
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
-                    <span className="flex-1 truncate">{p.name}</span>
-                    <span className="text-[10px] tabular-nums opacity-60">{p.ticket_count}</span>
-                  </Link>
-                );
-              })}
+              {navLink("/", LayoutList, "My Requests")}
+              {navLink("/projects", FolderOpen, "Projects")}
+              {/* Primary clients (not contacts) can manage their own team */}
+              {!user.is_contact && navLink("/my-team", UsersRound, "My Team")}
             </div>
-          </div>
-        )}
 
-        {/* Status */}
-        <div className="pt-4">
-          <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Status</p>
-          <div className="space-y-0.5">
-            {statuses.map((s) => (
-              <div key={s} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] text-muted">
-                <StatusIcon status={s} />
-                <span>{statusMeta[s].label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+            <Link
+              href="/new"
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors mt-1 ${
+                pathname === "/new" ? "bg-accent/10 text-accent" : "text-muted hover:bg-gray-100 hover:text-foreground"
+              }`}
+            >
+              <Plus size={15} />
+              New Request
+            </Link>
 
-        {/* POC section — client role only */}
-        {!user.is_admin && (
-          <div className="pt-4">
-            <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Your POC</p>
-            {poc ? (
-              <div className="px-3 py-2 rounded-lg bg-gray-50/80">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <div className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center text-[10px] font-semibold text-accent flex-shrink-0">
-                    {poc.avatar_initials}
-                  </div>
-                  <span className="text-[12px] font-medium text-foreground truncate">{poc.name}</span>
+            {/* Projects quick-links */}
+            {projects.length > 0 && (
+              <div className="pt-4 border-t border-border mt-3">
+                <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Projects</p>
+                <div className="space-y-0.5">
+                  {projects.map((p) => {
+                    const active = pathname === `/projects/${p.id}`;
+                    return (
+                      <Link
+                        key={p.id}
+                        href={`/projects/${p.id}`}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] transition-colors ${
+                          active ? "bg-accent/10 text-accent" : "text-muted hover:bg-gray-100 hover:text-foreground"
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
+                        <span className="flex-1 truncate">{p.name}</span>
+                        <span className="text-[10px] tabular-nums opacity-60">{p.ticket_count}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
-                <p className="text-[11px] text-muted truncate pl-8">{poc.email}</p>
               </div>
-            ) : (
-              <p className="px-3 text-[12px] text-muted/60 italic">No POC assigned yet</p>
             )}
-          </div>
+
+            {/* Status */}
+            <div className="pt-4 border-t border-border mt-3">
+              <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Status</p>
+              <div className="space-y-0.5">
+                {statuses.map((s) => (
+                  <div key={s} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] text-muted">
+                    <StatusIcon status={s} />
+                    <span>{statusMeta[s].label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* POC section — client role only */}
+            {poc && (
+              <div className="pt-4 border-t border-border mt-3">
+                <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Your POC</p>
+                <div className="px-3 py-2 rounded-lg bg-gray-50/80">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <div className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center text-[10px] font-semibold text-accent flex-shrink-0">
+                      {poc.avatar_initials}
+                    </div>
+                    <span className="text-[12px] font-medium text-foreground truncate">{poc.name}</span>
+                  </div>
+                  <p className="text-[11px] text-muted truncate pl-8">{poc.email}</p>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </nav>
 

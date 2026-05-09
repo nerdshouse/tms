@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
 import { sendTicketCreatedEmail } from "@/lib/email";
+import { logEvent } from "@/lib/log";
 import admin from "firebase-admin";
 
 export async function POST(request: Request) {
@@ -63,6 +64,15 @@ export async function POST(request: Request) {
     priority,
     type:        ticketType,
     module:      ticketModule,
+  }).catch(console.error);
+
+  logEvent({
+    action_type: "ticket_created",
+    detail:      `"${title}" created by ${client.name}`,
+    entity_id:   ref.id,
+    entity_type: "ticket",
+    user_id:     client.id,
+    user_name:   client.name,
   }).catch(console.error);
 
   return NextResponse.json({ id: ref.id });

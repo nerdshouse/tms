@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
+import { logEvent } from "@/lib/log";
 import admin from "firebase-admin";
 
 export async function POST(request: Request) {
@@ -23,6 +24,15 @@ export async function POST(request: Request) {
     client_company: clientCompany,
     created_at:     now,
   });
+
+  logEvent({
+    action_type: "project_added",
+    detail:      `Project "${name}" added for ${clientName}`,
+    entity_id:   ref.id,
+    entity_type: "project",
+    user_id:     me.id,
+    user_name:   me.name,
+  }).catch(console.error);
 
   return NextResponse.json({
     id: ref.id, name, client_id, color: color ?? "#4a4fe0",

@@ -4,7 +4,7 @@
  */
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
-import type { Client, Ticket, TicketUpdate, Project, TeamMember, ClientContact } from "@/types";
+import type { Client, Ticket, TicketUpdate, Project, TeamMember, ClientContact, SystemLog } from "@/types";
 import type { firestore } from "firebase-admin";
 
 // ── Session helpers ───────────────────────────────────────────────────────────
@@ -81,6 +81,7 @@ export function docToTicket(snap: firestore.DocumentSnapshot): Ticket {
     project_id:  d.project_id ?? null,
     assignee_id: d.assignee_id ?? null,
     attachments: Array.isArray(d.attachments) ? d.attachments : undefined,
+    due_date:    d.due_date ?? null,
     created_at:  tsToIso(d.created_at),
     updated_at:  tsToIso(d.updated_at),
     clients: d.client_name
@@ -142,6 +143,20 @@ export function docToContact(snap: firestore.DocumentSnapshot): ClientContact {
     email:      d.email,
     status:     d.status ?? "pending",
     created_at: tsToIso(d.created_at),
+  };
+}
+
+export function docToSystemLog(snap: firestore.DocumentSnapshot): SystemLog {
+  const d = snap.data()!;
+  return {
+    id:          snap.id,
+    timestamp:   tsToIso(d.timestamp),
+    user_id:     d.user_id   ?? null,
+    user_name:   d.user_name ?? null,
+    action_type: d.action_type,
+    detail:      d.detail,
+    entity_id:   d.entity_id   ?? null,
+    entity_type: d.entity_type ?? null,
   };
 }
 
