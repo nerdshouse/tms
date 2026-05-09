@@ -7,7 +7,7 @@ export interface Attachment {
 
 export type Priority = "P0" | "P1" | "P2";
 export type Status = "open" | "in_progress" | "review" | "done";
-export type TicketType = "Bug" | "Feature" | "Performance";
+export type TicketType = "New" | "Existing";
 export type AuthorType = "client" | "team";
 export type TeamRole = "Admin" | "Developer" | "Designer" | "QA";
 export type MemberStatus = "active" | "inactive";

@@ -18,7 +18,7 @@ const PRIORITIES: { value: Priority; label: string }[] = [
   { value: "P2", label: "P2 — Normal" },
 ];
 
-const TYPES: TicketType[] = ["Bug", "Feature", "Performance"];
+const TYPES: TicketType[] = ["New", "Existing"];
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 
 interface Props {
@@ -75,7 +75,7 @@ export default function NewRequestForm({
   const [form, setForm] = useState({
     title: "",
     priority: "P1" as Priority,
-    type: "Bug" as TicketType,
+    type: "New" as TicketType,
     module: "Other",
     description: "",
     project_id: defaultProjectId ?? "",
@@ -277,10 +277,9 @@ export default function NewRequestForm({
         </div>
         <div>
           <label className="block text-[13px] font-medium text-foreground mb-1.5">Type</label>
-          <select disabled value={form.type} className={`${field} opacity-40 cursor-not-allowed`}>
+          <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as TicketType }))} className={field}>
             {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
-          <p className="text-[11px] text-muted mt-1">Set by Nerdshouse team</p>
         </div>
       </div>
 
