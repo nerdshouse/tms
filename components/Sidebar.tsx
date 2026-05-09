@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart2, LayoutList, Plus, LogOut, Users, UserCircle2, UsersRound } from "lucide-react";
+import { BarChart2, LayoutList, Plus, LogOut, Users, UserCircle2, UsersRound, FolderOpen } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import type { Client, Project, TeamMember } from "@/types";
@@ -69,6 +69,7 @@ export default function Sidebar({ user, projects, poc }: SidebarProps) {
           <>
             <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2 mt-1">Admin</p>
             {navLink("/", LayoutList, "All Requests")}
+            {navLink("/projects", FolderOpen, "Projects")}
             {navLink("/admin/clients", UserCircle2, "Clients")}
             {navLink("/admin/team", Users, "Team")}
             {navLink("/analytics", BarChart2, "Analytics")}
@@ -77,6 +78,7 @@ export default function Sidebar({ user, projects, poc }: SidebarProps) {
           <>
             <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2 mt-1">My Work</p>
             {navLink("/", LayoutList, "My Requests")}
+            {navLink("/projects", FolderOpen, "Projects")}
             {/* Primary clients (not contacts) can manage their own team */}
             {!user.is_contact && navLink("/my-team", UsersRound, "My Team")}
           </>
@@ -92,18 +94,29 @@ export default function Sidebar({ user, projects, poc }: SidebarProps) {
           New Request
         </Link>
 
-        {/* Projects */}
+        {/* Projects quick-links */}
         {projects.length > 0 && (
           <div className="pt-4">
             <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Projects</p>
             <div className="space-y-0.5">
-              {projects.map((p) => (
-                <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] text-muted hover:bg-gray-50 hover:text-foreground transition-colors cursor-default">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
-                  <span className="flex-1 truncate">{p.name}</span>
-                  <span className="text-[10px] tabular-nums">{p.ticket_count}</span>
-                </div>
-              ))}
+              {projects.map((p) => {
+                const active = pathname === `/projects/${p.id}`;
+                return (
+                  <Link
+                    key={p.id}
+                    href={`/projects/${p.id}`}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] transition-colors ${
+                      active
+                        ? "bg-accent/10 text-accent"
+                        : "text-muted hover:bg-gray-100 hover:text-foreground"
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
+                    <span className="flex-1 truncate">{p.name}</span>
+                    <span className="text-[10px] tabular-nums opacity-60">{p.ticket_count}</span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}

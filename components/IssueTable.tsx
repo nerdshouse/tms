@@ -2,10 +2,10 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, ChevronLeft } from "lucide-react";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
-import type { Ticket, Status } from "@/types";
+import type { Ticket, Project, Status } from "@/types";
 import { formatIST } from "@/lib/utils";
 import { useRealtime } from "@/lib/use-realtime";
 
@@ -14,6 +14,8 @@ interface IssueTableProps {
   isAdmin: boolean;
   initialStatus: string;
   initialSearch: string;
+  /** When set, this table is scoped to a single project */
+  project?: Project;
 }
 
 const statusTabs = [
@@ -24,15 +26,16 @@ const statusTabs = [
   { label: "Done",        value: "done" },
 ];
 
-export default function IssueTable({ tickets: initialTickets, isAdmin, initialStatus, initialSearch }: IssueTableProps) {
+export default function IssueTable({ tickets: initialTickets, isAdmin, initialStatus, initialSearch, project }: IssueTableProps) {
   const [tickets, setTickets] = useState(initialTickets);
   const [activeStatus, setActiveStatus] = useState(initialStatus);
   const [search, setSearch] = useState(initialSearch);
 
   useRealtime<Ticket>({
     table: "tickets",
+    filter: project ? { column: "project_id", value: project.id } : undefined,
     events: ["INSERT", "UPDATE"],
-    onInsert: (row) => setTickets((prev) => [row, ...prev]),
+    onInsert: (row) => setTickets((prev) => prev.some((t) => t.id === row.id) ? prev : [row, ...prev]),
     onUpdate: (row) =>
       setTickets((prev) =>
         prev.map((t) => (t.id === row.id ? { ...t, ...row } : t))
@@ -59,17 +62,48 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-[17px] font-semibold text-foreground">
-            {isAdmin ? "All Requests" : "My Requests"}
-          </h1>
-          <p className="text-xs text-muted mt-0.5">{tickets.length} total</p>
+      {project ? (
+        <div className="mb-5">
+          <Link
+            href="/projects"
+            className="inline-flex items-center gap-1 text-[12px] text-muted hover:text-foreground mb-3 transition-colors"
+          >
+            <ChevronLeft size={13} /> All Projects
+          </Link>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: `${project.color}22` }}
+              >
+                <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: project.color }} />
+              </div>
+              <div>
+                <h1 className="text-[17px] font-semibold text-foreground">{project.name}</h1>
+                <p className="text-xs text-muted mt-0.5">{tickets.length} ticket{tickets.length !== 1 ? "s" : ""}</p>
+              </div>
+            </div>
+            <Link
+              href={`/new?project_id=${project.id}`}
+              className="px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition"
+            >
+              + New Request
+            </Link>
+          </div>
         </div>
-        <Link href="/new" className="px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition">
-          + New Request
-        </Link>
-      </div>
+      ) : (
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h1 className="text-[17px] font-semibold text-foreground">
+              {isAdmin ? "All Requests" : "My Requests"}
+            </h1>
+            <p className="text-xs text-muted mt-0.5">{tickets.length} total</p>
+          </div>
+          <Link href="/new" className="px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition">
+            + New Request
+          </Link>
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex items-center gap-3 mb-4">

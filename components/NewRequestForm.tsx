@@ -20,7 +20,7 @@ const PRIORITIES: { value: Priority; label: string }[] = [
 
 const TYPES: TicketType[] = ["Bug", "Feature", "Performance"];
 
-export default function NewRequestForm() {
+export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?: string }) {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [form, setForm] = useState({
@@ -29,7 +29,7 @@ export default function NewRequestForm() {
     type: "Bug" as TicketType,
     module: "Other",
     description: "",
-    project_id: "",
+    project_id: defaultProjectId ?? "",
   });
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -39,12 +39,15 @@ export default function NewRequestForm() {
   useEffect(() => {
     fetch("/api/me/projects")
       .then((r) => r.ok ? r.json() : [])
-      .then((data) => {
+      .then((data: Project[]) => {
         setProjects(data);
-        if (data.length > 0) setForm((f) => ({ ...f, project_id: data[0].id }));
+        // Only auto-select first project if no default was provided via URL
+        if (data.length > 0 && !defaultProjectId) {
+          setForm((f) => ({ ...f, project_id: data[0].id }));
+        }
       })
       .catch(() => {});
-  }, []);
+  }, [defaultProjectId]);
 
   const onDrop = useCallback((accepted: File[]) => {
     setFiles((prev) => [...prev, ...accepted].slice(0, 5));
