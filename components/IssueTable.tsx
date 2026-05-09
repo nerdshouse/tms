@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Search, ChevronLeft } from "lucide-react";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
@@ -31,6 +32,7 @@ const statusTabs = [
 ];
 
 export default function IssueTable({ tickets: initialTickets, isAdmin, initialStatus, initialSearch, project, clientId, teamMembers }: IssueTableProps) {
+  const router = useRouter();
   const [tickets, setTickets] = useState(initialTickets);
   const [activeStatus, setActiveStatus] = useState(initialStatus);
   const [search, setSearch] = useState(initialSearch);
@@ -193,7 +195,8 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
               filtered.map((ticket, i) => (
                 <tr
                   key={ticket.id}
-                  className={`border-b border-border last:border-0 hover:bg-gray-50/50 transition-colors ${i % 2 === 0 ? "" : "bg-gray-50/20"}`}
+                  onClick={() => router.push(`/tickets/${ticket.id}`)}
+                  className={`border-b border-border last:border-0 hover:bg-gray-50/50 transition-colors cursor-pointer ${i % 2 === 0 ? "" : "bg-gray-50/20"}`}
                 >
                   <td className="px-4 py-3 font-mono text-[11px] text-muted">
                     #{ticket.id.slice(0, 8)}
