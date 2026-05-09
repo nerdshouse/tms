@@ -33,7 +33,7 @@ export async function POST(
   if (!togglProjectId) return NextResponse.json({ error: "No Toggl project mapped to this project" }, { status: 400 });
 
   // Fetch time entries from Toggl (last 90 days)
-  const since   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const since   = new Date(Date.now() - 89 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const until   = new Date().toISOString().slice(0, 10);
   const auth    = Buffer.from(`${api_token}:api_token`).toString("base64");
 
