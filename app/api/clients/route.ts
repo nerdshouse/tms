@@ -6,8 +6,10 @@ export async function POST(request: Request) {
   const me = await getSessionClient();
   if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { name, company, email, status } = await request.json();
-  if (!name || !email) return NextResponse.json({ error: "Name and email required" }, { status: 400 });
+  const { name, company, email: rawEmail, status } = await request.json();
+  if (!name || !rawEmail) return NextResponse.json({ error: "Name and email required" }, { status: 400 });
+
+  const email = rawEmail.trim().toLowerCase();
 
   // Create Firebase Auth user
   let uid: string;

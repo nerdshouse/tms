@@ -54,13 +54,19 @@ export async function POST(request: Request) {
         await adminAuth.setCustomUserClaims(uid, { is_admin: true });
 
       } else {
-        const [teamSnap, existingClientSnap, contactsSnap] = await Promise.all([
+        // email from Google ID token is always lowercase; stored emails may
+        // have been entered with mixed case — query both to be safe.
+        const emailLower = email.toLowerCase();
+        const [teamSnap, teamSnapAlt, existingClientSnap, contactsSnap] = await Promise.all([
           adminDb.collection("team_members").where("email", "==", email).limit(1).get(),
-          adminDb.collection("clients").where("email", "==", email).limit(1).get(),
-          adminDb.collectionGroup("contacts").where("email", "==", email).limit(1).get(),
+          adminDb.collection("team_members").where("email", "==", emailLower).limit(1).get(),
+          adminDb.collection("clients").where("email", "==", emailLower).limit(1).get(),
+          adminDb.collectionGroup("contacts").where("email", "==", emailLower).limit(1).get(),
         ]);
+        // Merge: prefer exact match but accept lowercase match too
+        const resolvedTeamSnap = !teamSnap.empty ? teamSnap : teamSnapAlt;
 
-        const isTeamMember     = !teamSnap.empty;
+        const isTeamMember     = !resolvedTeamSnap.empty;
         const isExistingClient = !existingClientSnap.empty;
         const isContact        = !contactsSnap.empty;
 
@@ -75,7 +81,7 @@ export async function POST(request: Request) {
         }
 
         if (isTeamMember) {
-          const tmDoc = teamSnap.docs[0];
+          const tmDoc = resolvedTeamSnap.docs[0];
           const tm    = tmDoc.data();
           await clientRef.set({
             name:           tm.name ?? googleName ?? email.split("@")[0],
@@ -132,7 +138,12 @@ export async function POST(request: Request) {
       //    Docs created before these fields were added won't have them.
       const d = clientSnap.data()!;
       if (d.is_admin === true && !d.team_role && !isEnvAdmin(email)) {
-        const tmSnap = await adminDb.collection("team_members").where("email", "==", email).limit(1).get();
+        const emailLower = email.toLowerCase();
+        const [tmSnap1, tmSnap2] = await Promise.all([
+          adminDb.collection("team_members").where("email", "==", email).limit(1).get(),
+          adminDb.collection("team_members").where("email", "==", emailLower).limit(1).get(),
+        ]);
+        const tmSnap = !tmSnap1.empty ? tmSnap1 : tmSnap2;
         if (!tmSnap.empty) {
           const tmDoc = tmSnap.docs[0];
           await clientRef.update({ team_role: tmDoc.data().role, team_member_id: tmDoc.id });
