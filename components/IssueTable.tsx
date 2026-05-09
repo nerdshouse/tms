@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Search, ChevronLeft } from "lucide-react";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
@@ -32,7 +31,6 @@ const statusTabs = [
 ];
 
 export default function IssueTable({ tickets: initialTickets, isAdmin, initialStatus, initialSearch, project, clientId, teamMembers }: IssueTableProps) {
-  const router = useRouter();
   const [tickets, setTickets] = useState(initialTickets);
   const [activeStatus, setActiveStatus] = useState(initialStatus);
   const [search, setSearch] = useState(initialSearch);
@@ -193,45 +191,49 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
               </tr>
             ) : (
               filtered.map((ticket, i) => (
-                <tr
+                <Link
                   key={ticket.id}
-                  onClick={() => router.push(`/tickets/${ticket.id}`)}
-                  className={`border-b border-border last:border-0 hover:bg-gray-50/50 transition-colors cursor-pointer ${i % 2 === 0 ? "" : "bg-gray-50/20"}`}
+                  href={`/tickets/${ticket.id}`}
+                  style={{ display: "contents" }}
                 >
-                  <td className="px-4 py-3 font-mono text-[11px] text-muted">
-                    #{ticket.id.slice(0, 8)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="font-medium text-foreground line-clamp-1">{ticket.title}</span>
-                  </td>
-                  {isAdmin && (
-                    <td className="px-4 py-3 text-muted">{ticket.clients?.name ?? "—"}</td>
-                  )}
-                  <td className="px-4 py-3">
-                    {ticket.projects ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: ticket.projects.color }} />
-                        <span className="text-[12px] text-foreground truncate max-w-[100px]">{ticket.projects.name}</span>
-                      </div>
-                    ) : (
-                      <span className="text-muted">—</span>
+                  <tr
+                    className={`border-b border-border last:border-0 hover:bg-gray-50/50 transition-colors cursor-pointer ${i % 2 === 0 ? "" : "bg-gray-50/20"}`}
+                  >
+                    <td className="px-4 py-3 font-mono text-[11px] text-muted">
+                      #{ticket.id.slice(0, 8)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-medium text-foreground line-clamp-1">{ticket.title}</span>
+                    </td>
+                    {isAdmin && (
+                      <td className="px-4 py-3 text-muted">{ticket.clients?.name ?? "—"}</td>
                     )}
-                  </td>
-                  <td className="px-4 py-3"><TypeBadge type={ticket.type} /></td>
-                  <td className="px-4 py-3"><PriorityBadge priority={ticket.priority} /></td>
-                  <td className="px-4 py-3"><StatusIcon status={ticket.status as Status} showLabel /></td>
-                  <td className="px-4 py-3 text-muted">{ticket.module || "—"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    {ticket.due_date ? (
-                      <span className={`text-[12px] font-medium ${new Date(ticket.due_date) < new Date() && ticket.status !== "done" ? "text-red-500" : "text-muted"}`}>
-                        {formatDate(ticket.due_date)}
-                      </span>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-muted whitespace-nowrap">{formatIST(ticket.updated_at)}</td>
-                </tr>
+                    <td className="px-4 py-3">
+                      {ticket.projects ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: ticket.projects.color }} />
+                          <span className="text-[12px] text-foreground truncate max-w-[100px]">{ticket.projects.name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3"><TypeBadge type={ticket.type} /></td>
+                    <td className="px-4 py-3"><PriorityBadge priority={ticket.priority} /></td>
+                    <td className="px-4 py-3"><StatusIcon status={ticket.status as Status} showLabel /></td>
+                    <td className="px-4 py-3 text-muted">{ticket.module || "—"}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {ticket.due_date ? (
+                        <span className={`text-[12px] font-medium ${new Date(ticket.due_date) < new Date() && ticket.status !== "done" ? "text-red-500" : "text-muted"}`}>
+                          {formatDate(ticket.due_date)}
+                        </span>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-muted whitespace-nowrap">{formatIST(ticket.updated_at)}</td>
+                  </tr>
+                </Link>
               ))
             )}
           </tbody>
