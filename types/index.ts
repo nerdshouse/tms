@@ -1,3 +1,10 @@
+export interface Attachment {
+  url:  string;
+  name: string;
+  type: string;
+  size: number;
+}
+
 export type Priority = "P0" | "P1" | "P2";
 export type Status = "open" | "in_progress" | "review" | "done";
 export type TicketType = "Bug" | "Feature" | "Performance";
@@ -60,7 +67,7 @@ export interface Ticket {
   client_id: string;
   project_id: string | null;
   assignee_id: string | null;
-  attachments?: string[];
+  attachments?: Attachment[];
   page_url?: string | null;
   due_date?: string | null;
   created_at: string;

@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -28,13 +28,33 @@ export const storage     = app ? getStorage(app)   : (null as any);
 export const googleProvider = new GoogleAuthProvider();
 export { signInWithPopup, signOut };
 
+export interface AttachmentMeta {
+  url:  string;
+  name: string;
+  type: string;
+  size: number;
+}
+
 /** Upload a file to Firebase Storage under attachments/{uid}/{timestamp}_{name}.
- *  Returns the public download URL. */
-export async function uploadAttachment(uid: string, file: File): Promise<string> {
+ *  Calls onProgress(0-100) as bytes transfer. Returns full metadata. */
+export async function uploadAttachment(
+  uid: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<AttachmentMeta> {
   const path = `attachments/${uid}/${Date.now()}_${file.name}`;
   const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
+  await new Promise<void>((resolve, reject) => {
+    const task = uploadBytesResumable(storageRef, file);
+    task.on(
+      "state_changed",
+      (snap) => onProgress?.(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
+      reject,
+      resolve,
+    );
+  });
+  const url = await getDownloadURL(storageRef);
+  return { url, name: file.name, type: file.type || "application/octet-stream", size: file.size };
 }
 
 /** Alias kept for callers that used getDb() after the proxy migration. */

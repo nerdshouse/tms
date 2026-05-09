@@ -15,8 +15,8 @@ export async function POST(request: Request) {
   const ticketModule   = formData.get("module") as string;
   const description    = formData.get("description") as string;
   const projectId      = formData.get("project_id") as string | null;
-  const attachmentRaw  = formData.get("attachment_urls") as string | null;
-  const attachmentUrls: string[] = attachmentRaw ? JSON.parse(attachmentRaw) : [];
+  const attachmentsRaw = formData.get("attachments") as string | null;
+  const attachments    = attachmentsRaw ? JSON.parse(attachmentsRaw) : [];
   const pageUrl        = (formData.get("page_url") as string | null)?.trim() || null;
 
   if (!title || !description) {
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     assignee_id:      null,
     assignee_name:    null,
     assignee_initials: null,
-    attachments:      attachmentUrls,
+    attachments:      attachments,
     page_url:         pageUrl,
     created_at: now,
     updated_at: now,

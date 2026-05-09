@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { useRouter } from "next/navigation";
-import { Upload, X, Loader2 } from "lucide-react";
+import { Upload, X, Loader2, FileText } from "lucide-react";
 import { auth, uploadAttachment } from "@/lib/firebase/client";
 import type { Priority, TicketType, Project } from "@/types";
 
@@ -19,6 +19,7 @@ const PRIORITIES: { value: Priority; label: string }[] = [
 ];
 
 const TYPES: TicketType[] = ["Bug", "Feature", "Performance"];
+const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 
 export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?: string }) {
   const router = useRouter();
@@ -34,16 +35,17 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
   const [pageUrl, setPageUrl] = useState("");
   const [pageUrlError, setPageUrlError] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [fileSizeError, setFileSizeError] = useState("");
+  // null = idle, 0-100 = uploading
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  // Load projects for this client
   useEffect(() => {
     fetch("/api/me/projects")
       .then((r) => r.ok ? r.json() : [])
       .then((data: Project[]) => {
         setProjects(data);
-        // Only auto-select first project if no default was provided via URL
         if (data.length > 0 && !defaultProjectId) {
           setForm((f) => ({ ...f, project_id: data[0].id }));
         }
@@ -51,18 +53,25 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
       .catch(() => {});
   }, [defaultProjectId]);
 
-  const onDrop = useCallback((accepted: File[]) => {
+  const onDrop = useCallback((accepted: File[], rejected: import("react-dropzone").FileRejection[]) => {
+    const tooBig = rejected.some((r) => r.errors.some((e) => e.code === "file-too-large"));
+    if (tooBig) {
+      setFileSizeError("One or more files exceed the 10 MB limit.");
+      return;
+    }
+    setFileSizeError("");
     setFiles((prev) => [...prev, ...accepted].slice(0, 5));
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "image/*": [], "application/pdf": [], "text/*": [] },
-    maxSize: 10 * 1024 * 1024,
+    maxSize: MAX_SIZE,
   });
 
   function removeFile(i: number) {
     setFiles((prev) => prev.filter((_, idx) => idx !== i));
+    setFileSizeError("");
   }
 
   function validatePageUrl(val: string): string {
@@ -88,18 +97,28 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
     setError("");
 
     try {
-      // Upload attachments to Firebase Storage first
       const uid = auth?.currentUser?.uid ?? "unknown";
-      const attachmentUrls = files.length > 0
-        ? await Promise.all(files.map((f) => uploadAttachment(uid, f)))
-        : [];
+      let attachments: { url: string; name: string; type: string; size: number }[] = [];
+
+      if (files.length > 0) {
+        const progress = new Array(files.length).fill(0);
+        setUploadPct(0);
+        attachments = await Promise.all(
+          files.map((f, idx) =>
+            uploadAttachment(uid, f, (pct) => {
+              progress[idx] = pct;
+              const avg = Math.round(progress.reduce((a, b) => a + b, 0) / progress.length);
+              setUploadPct(avg);
+            })
+          )
+        );
+        setUploadPct(null);
+      }
 
       const body = new FormData();
       Object.entries(form).forEach(([k, v]) => body.append(k, v));
       if (pageUrl.trim()) body.append("page_url", pageUrl.trim());
-      if (attachmentUrls.length > 0) {
-        body.append("attachment_urls", JSON.stringify(attachmentUrls));
-      }
+      if (attachments.length > 0) body.append("attachments", JSON.stringify(attachments));
 
       const res = await fetch("/api/tickets", { method: "POST", body });
       const data = await res.json();
@@ -107,6 +126,7 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
 
       router.push(`/tickets/${data.id}`);
     } catch (err: unknown) {
+      setUploadPct(null);
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
@@ -154,7 +174,6 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
             ))}
           </select>
         )}
-        {/* Colour dot preview */}
         {form.project_id && (() => {
           const p = projects.find((x) => x.id === form.project_id);
           return p ? (
@@ -227,7 +246,7 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
       {/* File Upload */}
       <div>
         <label className="block text-[13px] font-medium text-foreground mb-1.5">
-          Attachments <span className="text-muted font-normal">(optional, up to 5 files)</span>
+          Attachments <span className="text-muted font-normal">(optional, up to 5 files, 10 MB each)</span>
         </label>
         <div
           {...getRootProps()}
@@ -240,16 +259,59 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
           <p className="text-[13px] text-muted">
             {isDragActive ? "Drop files here…" : "Drag files here, or click to browse"}
           </p>
+          <p className="text-[11px] text-muted mt-1">Images, PDFs, text files — max 10 MB each</p>
         </div>
+
+        {fileSizeError && (
+          <p className="text-[11px] text-red-500 mt-1">{fileSizeError}</p>
+        )}
+
+        {/* Upload progress bar */}
+        {uploadPct !== null && (
+          <div className="mt-2">
+            <div className="flex items-center justify-between text-[11px] text-muted mb-1">
+              <span>Uploading…</span>
+              <span>{uploadPct}%</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-1.5">
+              <div
+                className="bg-accent h-1.5 rounded-full transition-all"
+                style={{ width: `${uploadPct}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* File previews */}
         {files.length > 0 && (
-          <ul className="mt-2 space-y-1">
-            {files.map((f, i) => (
-              <li key={i} className="flex items-center gap-2 text-[12px] text-muted bg-gray-50 rounded-lg px-3 py-1.5">
-                <span className="flex-1 truncate">{f.name}</span>
-                <span className="text-[11px]">{(f.size / 1024).toFixed(0)} KB</span>
-                <button type="button" onClick={() => removeFile(i)} className="hover:text-red-500 transition-colors"><X size={13} /></button>
-              </li>
-            ))}
+          <ul className="mt-2 space-y-2">
+            {files.map((f, i) => {
+              const isImage = f.type.startsWith("image/");
+              const previewUrl = isImage ? URL.createObjectURL(f) : null;
+              return (
+                <li key={i} className="flex items-center gap-3 bg-gray-50 border border-border rounded-lg p-2">
+                  {isImage && previewUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={previewUrl} alt={f.name} className="w-10 h-10 rounded object-cover flex-shrink-0 border border-border" />
+                  ) : (
+                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
+                      <FileText size={16} className="text-muted" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] text-foreground truncate">{f.name}</p>
+                    <p className="text-[11px] text-muted">{(f.size / 1024).toFixed(0)} KB</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(i)}
+                    className="text-muted hover:text-red-500 transition-colors flex-shrink-0"
+                  >
+                    <X size={14} />
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -257,9 +319,13 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
       {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>}
 
       <div className="flex items-center gap-3 pt-1">
-        <button type="submit" disabled={submitting} className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition disabled:opacity-60">
+        <button
+          type="submit"
+          disabled={submitting || uploadPct !== null}
+          className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition disabled:opacity-60"
+        >
           {submitting && <Loader2 size={13} className="animate-spin" />}
-          {submitting ? "Submitting…" : "Submit Request"}
+          {submitting ? (uploadPct !== null ? "Uploading…" : "Submitting…") : "Submit Request"}
         </button>
         <button type="button" onClick={() => router.back()} className="px-4 py-2 text-[13px] text-muted hover:text-foreground border border-border rounded-lg hover:bg-gray-50 transition">
           Cancel

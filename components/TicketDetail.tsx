@@ -143,32 +143,42 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
               <StatusIcon status={localTicket.status} showLabel />
             </div>
             <p className="text-[13px] text-muted leading-relaxed whitespace-pre-wrap">{localTicket.description}</p>
-            {localTicket.attachments && localTicket.attachments.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border">
-                <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1">
-                  <Paperclip size={11} /> Attachments
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {localTicket.attachments.map((url, i) => {
-                    const name = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? `file-${i + 1}`).replace(/^\d+_/, "");
-                    const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name);
-                    return isImage ? (
-                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={url} alt={name} className="max-w-full max-h-96 rounded-lg border border-border object-contain hover:opacity-90 transition" />
-                      </a>
-                    ) : (
-                      <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-border rounded-lg text-[12px] text-muted hover:text-accent hover:border-accent/40 transition">
-                        <Paperclip size={11} />
-                        <span className="truncate max-w-[180px]">{name}</span>
-                      </a>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
+
+          {/* Attachments */}
+          {localTicket.attachments && localTicket.attachments.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-5 mb-4">
+              <h2 className="text-[13px] font-semibold text-foreground mb-4">Attachments</h2>
+              <div className="space-y-2">
+                {localTicket.attachments.map((att, i) => {
+                  const isImage = att.type.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(att.name);
+                  return isImage ? (
+                    <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={att.url}
+                        alt={att.name}
+                        className="max-w-full rounded-lg border border-border object-contain hover:opacity-90 transition"
+                      />
+                    </a>
+                  ) : (
+                    <a
+                      key={i}
+                      href={att.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={att.name}
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-border rounded-lg text-[12px] text-muted hover:text-accent hover:border-accent/40 transition w-fit"
+                    >
+                      <Paperclip size={12} />
+                      <span className="truncate max-w-[240px]">{att.name}</span>
+                      <span className="text-[11px] opacity-60 ml-1">{(att.size / 1024).toFixed(0)} KB</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Activity */}
           <div className="bg-card border border-border rounded-xl p-5">
