@@ -29,10 +29,15 @@ export default async function AdminClientsPage() {
   const clients: Client[] = clientsSnap.docs.map(docToClient);
   const projects: Project[] = projectsSnap.docs.map(docToProject);
 
-  // For developer roles: set of client IDs that have tickets assigned to them
+  // For developer roles: client IDs explicitly assigned OR with assigned tickets
   const assignedClientIds: Set<string> | undefined = fullAdmin
     ? undefined
-    : new Set(Object.keys(ticketCounts));
+    : new Set([
+        ...clients
+          .filter((c) => (c.assigned_members ?? []).includes(me.team_member_id ?? ""))
+          .map((c) => c.id),
+        ...Object.keys(ticketCounts),
+      ]);
 
   return (
     <ClientsGrid

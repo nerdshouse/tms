@@ -16,12 +16,13 @@ export async function PATCH(
   // poc_id: all admins can update
   if ("poc_id" in body) allowed.poc_id = body.poc_id ?? null;
 
-  // profile fields: full admins only
+  // profile fields + assigned_members: full admins only
   if (isFullAdmin) {
-    if ("status"  in body) allowed.status  = body.status;
-    if ("company" in body) allowed.company = body.company;
-    if ("name"    in body) allowed.name    = body.name;
-  } else if (["status", "company", "name"].some((k) => k in body)) {
+    if ("status"           in body) allowed.status           = body.status;
+    if ("company"          in body) allowed.company          = body.company;
+    if ("name"             in body) allowed.name             = body.name;
+    if ("assigned_members" in body) allowed.assigned_members = body.assigned_members ?? [];
+  } else if (["status", "company", "name", "assigned_members"].some((k) => k in body)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

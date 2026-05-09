@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Plus, Trash2, Mail, UserCheck, Loader2 } from "lucide-react";
+import { ChevronLeft, Plus, Trash2, Mail, UserCheck, Users, X, Loader2 } from "lucide-react";
 import Sheet from "@/components/ui/Sheet";
 import AddProjectSheet from "@/components/admin/AddProjectSheet";
 import { StatusIcon } from "@/components/ui/StatusIcon";
@@ -64,6 +64,10 @@ export default function ClientDetail({
   const [pocId, setPocId]     = useState(client.poc_id ?? "");
   const [savingPoc, setSavingPoc] = useState(false);
 
+  // Assigned members
+  const [assignedMemberIds, setAssignedMemberIds] = useState<string[]>(client.assigned_members ?? []);
+  const [savingAssigned, setSavingAssigned] = useState(false);
+
   // Contacts
   const [contacts, setContacts]           = useState(initialContacts);
   const [showContactForm, setShowContactForm] = useState(false);
@@ -115,6 +119,17 @@ export default function ClientDetail({
     });
     setPocId(value);
     setSavingPoc(false);
+  }
+
+  async function saveAssignedMembers(ids: string[]) {
+    setSavingAssigned(true);
+    await fetch(`/api/clients/${client.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assigned_members: ids }),
+    });
+    setAssignedMemberIds(ids);
+    setSavingAssigned(false);
   }
 
   function handleProjectAdded(project: Project) {
@@ -340,6 +355,59 @@ export default function ClientDetail({
                 !poc && <p className="text-[12px] text-muted">No POC assigned</p>
               )}
             </div>
+
+            {/* Assigned Team Members — full admin only */}
+            {isFullAdmin && (
+              <div className="bg-card border border-border rounded-xl p-4">
+                <div className="flex items-center gap-1.5 mb-3">
+                  <Users size={13} className="text-muted" />
+                  <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">Assigned Members</h3>
+                  {savingAssigned && <Loader2 size={11} className="animate-spin text-muted ml-auto" />}
+                </div>
+
+                {/* Chips for assigned members */}
+                {assignedMemberIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {assignedMemberIds.map((mid) => {
+                      const m = teamMembers.find((tm) => tm.id === mid);
+                      if (!m) return null;
+                      return (
+                        <span key={mid} className="inline-flex items-center gap-1 text-[11px] font-medium bg-accent/10 text-accent px-2 py-0.5 rounded-full">
+                          {m.name}
+                          <button
+                            onClick={() => saveAssignedMembers(assignedMemberIds.filter((id) => id !== mid))}
+                            disabled={savingAssigned}
+                            className="hover:text-accent/70 transition-colors disabled:opacity-40"
+                          >
+                            <X size={10} />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Dropdown to add a member */}
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    if (!assignedMemberIds.includes(e.target.value)) {
+                      saveAssignedMembers([...assignedMemberIds, e.target.value]);
+                    }
+                  }}
+                  disabled={savingAssigned}
+                  className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition disabled:opacity-60"
+                >
+                  <option value="">+ Add member…</option>
+                  {teamMembers
+                    .filter((m) => m.status === "active" && !assignedMemberIds.includes(m.id))
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
+                    ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
       )}

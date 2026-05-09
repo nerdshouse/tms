@@ -4,7 +4,7 @@ import {
   getSessionClient, adminDb,
   docToClient, docToProject, docToTicket, docToTeamMember, docToContact,
 } from "@/lib/firebase/helpers";
-import { isFullAdmin } from "@/lib/permissions";
+import { isFullAdmin, canAccessClient } from "@/lib/permissions";
 import type { Client, Project, Ticket, TeamMember, ClientContact } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -15,16 +15,24 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
 
   const fullAdmin = isFullAdmin(me);
 
-  // For developer roles, check if they have any ticket assigned for this client
+  // For developer roles, check explicit assignment first, then fall back to ticket-based access
   if (!fullAdmin) {
-    const assignedSnap = await adminDb
-      .collection("tickets")
-      .where("client_id", "==", params.id)
-      .where("assignee_id", "==", me.team_member_id ?? "")
-      .limit(1)
-      .get();
-    if (assignedSnap.empty) {
-      redirect("/admin/clients?denied=1");
+    const clientSnap = await adminDb.collection("clients").doc(params.id).get();
+    if (!clientSnap.exists) notFound();
+
+    const clientData = { assigned_members: (clientSnap.data()?.assigned_members ?? []) as string[] };
+    const hasExplicitAccess = canAccessClient(me.team_member_id ?? "", clientData as import("@/types").Client);
+
+    if (!hasExplicitAccess) {
+      const assignedSnap = await adminDb
+        .collection("tickets")
+        .where("client_id", "==", params.id)
+        .where("assignee_id", "==", me.team_member_id ?? "")
+        .limit(1)
+        .get();
+      if (assignedSnap.empty) {
+        redirect("/admin/clients?denied=1");
+      }
     }
   }
 

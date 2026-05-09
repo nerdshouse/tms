@@ -62,6 +62,7 @@ export function docToClient(snap: firestore.DocumentSnapshot): Client {
     poc_id:            d.poc_id ?? undefined,
     team_role:         d.team_role ?? undefined,
     team_member_id:    d.team_member_id ?? undefined,
+    assigned_members:  d.assigned_members ?? [],
     status:            d.status ?? "active",
     created_at:        tsToIso(d.created_at),
   };

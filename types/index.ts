@@ -30,6 +30,8 @@ export interface Client {
   team_role?: TeamRole;
   /** Set only for team members who sign in — their team_members document ID */
   team_member_id?: string;
+  /** Team member IDs explicitly assigned to manage this client */
+  assigned_members?: string[];
   status: ClientStatus;
   created_at: string;
 }

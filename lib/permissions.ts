@@ -9,3 +9,8 @@ export function isFullAdmin(client: Client): boolean {
 export function isDeveloperRole(client: Client): boolean {
   return client.is_admin && !!client.team_role && client.team_role !== "Admin";
 }
+
+/** Returns true if the developer team member has explicit access to the given client. */
+export function canAccessClient(developerMemberId: string, client: Client): boolean {
+  return (client.assigned_members ?? []).includes(developerMemberId);
+}
