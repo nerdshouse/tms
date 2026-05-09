@@ -14,6 +14,17 @@ import type { Client, Project, Ticket, TeamMember, ClientContact, Status, Priori
 
 type TabId = "overview" | "tickets" | "projects" | "team" | "analytics";
 
+interface TogglRawEntry {
+  id: number;
+  description: string;
+  duration: number;   // seconds
+  start: string;
+  stop: string | null;
+  project_id: number | null;
+  tags: string[];
+  billable: boolean;
+}
+
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview",  label: "Overview" },
   { id: "tickets",   label: "Tickets" },
@@ -85,6 +96,14 @@ export default function ClientDetail({
   const [syncing, setSyncing]                   = useState(false);
   const [syncResult, setSyncResult]             = useState<string | null>(null);
   const [togglConfigured, setTogglConfigured]   = useState<boolean | null>(null);
+
+  // Hours sheet tabs
+  type HoursTab = "log" | "toggl";
+  const [hoursTab, setHoursTab]                 = useState<HoursTab>("log");
+  const [togglEntries, setTogglEntries]         = useState<TogglRawEntry[]>([]);
+  const [loadingTogglEntries, setLoadingTogglEntries] = useState(false);
+  const [togglEntriesError, setTogglEntriesError] = useState<string | null>(null);
+  const [togglDebug, setTogglDebug]             = useState<{ total: number; project_id: number; seen: (number|null)[] } | null>(null);
 
   // POC
   const [pocId, setPocId]     = useState(client.poc_id ?? "");
@@ -177,11 +196,32 @@ export default function ClientDetail({
     setSavingAssigned(false);
   }
 
+  async function loadTogglEntries(projectId: string) {
+    setLoadingTogglEntries(true);
+    setTogglEntriesError(null);
+    setTogglDebug(null);
+    const res = await fetch(`/api/toggl/entries/${projectId}`);
+    const data = await res.json();
+    if (res.ok) {
+      setTogglEntries(data.entries ?? []);
+      if (data.entries?.length === 0) {
+        setTogglDebug({ total: data.total_entries_fetched, project_id: data.toggl_project_id, seen: data.all_project_ids_seen });
+      }
+    } else {
+      setTogglEntriesError(data.error ?? "Failed to load");
+    }
+    setLoadingTogglEntries(false);
+  }
+
   async function openHoursSheet(project: Project) {
     setHoursProject(project);
     setHourForm({ description: "", hours: "", date: new Date().toISOString().slice(0, 10) });
     setEditingHour(null);
     setSyncResult(null);
+    setHoursTab("log");
+    setTogglEntries([]);
+    setTogglEntriesError(null);
+    setTogglDebug(null);
     setLoadingHours(true);
 
     // Load hours + check Toggl config in parallel
@@ -992,6 +1032,28 @@ export default function ClientDetail({
       >
         {hoursProject && (
           <div className="space-y-5">
+            {/* Tab switcher */}
+            <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5 w-fit">
+              {([["log", "Log Hours"], ["toggl", "Toggl Sync"]] as [string, string][]).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => {
+                    setHoursTab(id as "log" | "toggl");
+                    if (id === "toggl" && togglEntries.length === 0 && !loadingTogglEntries && !togglEntriesError) {
+                      loadTogglEntries(hoursProject.id);
+                    }
+                  }}
+                  className={`px-4 py-1.5 rounded-md text-[12px] font-medium transition-colors ${
+                    hoursTab === id ? "bg-white text-foreground shadow-sm" : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* ── Log Hours tab ── */}
+            {hoursTab === "log" && <>
             {/* Add / Edit form */}
             <form onSubmit={submitHourEntry} className="space-y-3 bg-gray-50/60 border border-border rounded-xl p-4">
               <p className="text-[12px] font-semibold text-foreground">{editingHour ? "Edit entry" : "Log hours"}</p>
@@ -1032,52 +1094,10 @@ export default function ClientDetail({
               </div>
             </form>
 
-            {/* Toggl sync */}
-            {togglConfigured === true && (
-              <div className="bg-gray-50/60 border border-border rounded-xl p-4 space-y-3">
-                <p className="text-[12px] font-semibold text-foreground flex items-center gap-1.5">
-                  <RefreshCw size={12} className="text-muted" /> Toggl Sync
-                </p>
-                <div>
-                  <label className="block text-[11px] font-medium text-muted mb-1">Toggl Project</label>
-                  <select
-                    value={hoursProject.toggl_project_id ?? ""}
-                    onChange={(e) => saveTogglMapping(hoursProject.id, e.target.value ? Number(e.target.value) : null)}
-                    disabled={loadingToggl}
-                    className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition disabled:opacity-60"
-                  >
-                    <option value="">— Not mapped —</option>
-                    {togglProjects.map((tp) => (
-                      <option key={tp.id} value={tp.id}>{tp.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  onClick={syncToggl}
-                  disabled={syncing || !hoursProject.toggl_project_id}
-                  className="flex items-center gap-2 px-3.5 py-2 text-[12px] font-medium text-muted border border-border rounded-lg hover:bg-gray-100 hover:text-foreground transition disabled:opacity-50"
-                >
-                  {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                  {syncing ? "Syncing…" : "Sync from Toggl"}
-                </button>
-                {syncResult && (
-                  <p className={`text-[12px] ${syncResult.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>
-                    {syncResult}
-                  </p>
-                )}
-              </div>
-            )}
-            {togglConfigured === false && (
-              <p className="text-[11px] text-muted/70 italic">
-                Configure Toggl in <a href="/admin/settings" className="underline text-accent">Settings</a> to enable sync.
-              </p>
-            )}
-
             {/* Total */}
             <div className="flex items-center gap-2 px-1">
               <Clock size={13} className="text-muted" />
-              <span className="text-[13px] text-muted">Total:</span>
+              <span className="text-[13px] text-muted">Total logged:</span>
               <span className="text-[13px] font-semibold text-foreground">
                 {(projects.find((p) => p.id === hoursProject.id)?.total_hours ?? 0).toFixed(1)} hrs
               </span>
@@ -1094,9 +1114,12 @@ export default function ClientDetail({
                   <div key={entry.id} className="flex items-start gap-3 bg-card border border-border rounded-lg px-4 py-3 group">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-[13px] font-semibold text-foreground">{entry.hours.toFixed(1)}h</span>
+                        <span className="text-[13px] font-semibold text-foreground">{entry.hours.toFixed(2)}h</span>
                         <span className="text-[11px] text-muted">{entry.date}</span>
                         <span className="text-[11px] text-muted/60">· {entry.added_by_name}</span>
+                        {entry.toggl_entry_id && (
+                          <span className="text-[10px] bg-purple-50 text-purple-600 border border-purple-100 px-1.5 py-0.5 rounded font-medium">Toggl</span>
+                        )}
                       </div>
                       {entry.description && (
                         <p className="text-[12px] text-muted truncate">{entry.description}</p>
@@ -1117,6 +1140,143 @@ export default function ClientDetail({
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+            </> /* end log tab */}
+
+            {/* ── Toggl Sync tab ── */}
+            {hoursTab === "toggl" && (
+              <div className="space-y-4">
+                {/* Project mapping + sync controls */}
+                {togglConfigured === true ? (
+                  <div className="bg-gray-50/60 border border-border rounded-xl p-4 space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-medium text-muted mb-1">Map to Toggl Project</label>
+                      <select
+                        value={hoursProject.toggl_project_id ?? ""}
+                        onChange={(e) => {
+                          saveTogglMapping(hoursProject.id, e.target.value ? Number(e.target.value) : null);
+                          setTogglEntries([]);
+                          setTogglDebug(null);
+                        }}
+                        disabled={loadingToggl}
+                        className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition disabled:opacity-60"
+                      >
+                        <option value="">— Not mapped —</option>
+                        {togglProjects.map((tp) => (
+                          <option key={tp.id} value={tp.id}>{tp.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => loadTogglEntries(hoursProject.id)}
+                        disabled={loadingTogglEntries || !hoursProject.toggl_project_id}
+                        className="flex items-center gap-2 px-3 py-1.5 text-[12px] font-medium text-muted border border-border rounded-lg hover:bg-gray-100 hover:text-foreground transition disabled:opacity-50"
+                      >
+                        {loadingTogglEntries ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                        {loadingTogglEntries ? "Loading…" : "Refresh"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={syncToggl}
+                        disabled={syncing || !hoursProject.toggl_project_id}
+                        className="flex items-center gap-2 px-3 py-1.5 text-[12px] font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition disabled:opacity-50"
+                      >
+                        {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                        {syncing ? "Syncing…" : "Import to Hours Log"}
+                      </button>
+                    </div>
+                    {syncResult && (
+                      <p className={`text-[12px] ${syncResult.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>
+                        {syncResult}
+                      </p>
+                    )}
+                  </div>
+                ) : togglConfigured === false ? (
+                  <p className="text-[12px] text-muted">
+                    Configure Toggl in <a href="/admin/settings" className="underline text-accent">Settings</a> to enable sync.
+                  </p>
+                ) : (
+                  <div className="flex justify-center py-4"><Loader2 size={16} className="animate-spin text-muted" /></div>
+                )}
+
+                {/* Toggl entries table */}
+                {togglEntriesError && (
+                  <p className="text-[12px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{togglEntriesError}</p>
+                )}
+
+                {loadingTogglEntries ? (
+                  <div className="flex justify-center py-8"><Loader2 size={18} className="animate-spin text-muted" /></div>
+                ) : togglEntries.length > 0 ? (
+                  <>
+                    {/* Summary */}
+                    <div className="flex items-center gap-3 px-1">
+                      <Clock size={13} className="text-muted" />
+                      <span className="text-[13px] text-muted">{togglEntries.length} entr{togglEntries.length !== 1 ? "ies" : "y"}</span>
+                      <span className="text-[13px] font-semibold text-foreground">
+                        {togglEntries.reduce((a, e) => a + e.duration / 3600, 0).toFixed(2)} hrs total
+                      </span>
+                    </div>
+
+                    {/* Table */}
+                    <div className="border border-border rounded-xl overflow-hidden">
+                      <table className="w-full text-[12px]">
+                        <thead>
+                          <tr className="border-b border-border bg-gray-50/60">
+                            <th className="text-left px-3 py-2 font-medium text-muted text-[11px] uppercase tracking-wide">Date</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted text-[11px] uppercase tracking-wide">Task</th>
+                            <th className="text-right px-3 py-2 font-medium text-muted text-[11px] uppercase tracking-wide w-20">Duration</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted text-[11px] uppercase tracking-wide w-20">Start</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted text-[11px] uppercase tracking-wide w-20">End</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted text-[11px] uppercase tracking-wide w-16">Tags</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {togglEntries.map((e, i) => {
+                            const hrs   = Math.floor(e.duration / 3600);
+                            const mins  = Math.floor((e.duration % 3600) / 60);
+                            const secs  = e.duration % 60;
+                            const dur   = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m ${secs}s`;
+                            const date  = e.start.slice(0, 10);
+                            const start = new Date(e.start).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
+                            const end   = e.stop ? new Date(e.stop).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) : "—";
+                            return (
+                              <tr key={e.id} className={`border-b border-border last:border-0 hover:bg-gray-50/50 transition-colors ${i % 2 !== 0 ? "bg-gray-50/20" : ""}`}>
+                                <td className="px-3 py-2.5 text-muted whitespace-nowrap">{date}</td>
+                                <td className="px-3 py-2.5 text-foreground max-w-[180px]">
+                                  <span className="block truncate">{e.description || <span className="text-muted italic">No description</span>}</span>
+                                </td>
+                                <td className="px-3 py-2.5 text-right font-semibold text-foreground tabular-nums whitespace-nowrap">{dur}</td>
+                                <td className="px-3 py-2.5 text-muted whitespace-nowrap">{start}</td>
+                                <td className="px-3 py-2.5 text-muted whitespace-nowrap">{end}</td>
+                                <td className="px-3 py-2.5">
+                                  {e.tags?.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {e.tags.map((t) => (
+                                        <span key={t} className="text-[10px] bg-gray-100 text-muted px-1.5 py-0.5 rounded">{t}</span>
+                                      ))}
+                                    </div>
+                                  ) : <span className="text-muted">—</span>}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : togglDebug ? (
+                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 space-y-1">
+                    <p className="text-[12px] font-medium text-amber-800">No entries found for this project.</p>
+                    <p className="text-[11px] text-amber-700">Fetched {togglDebug.total} total entries. Looking for project ID <code className="font-mono">{togglDebug.project_id}</code>.</p>
+                    <p className="text-[11px] text-amber-700">Project IDs seen in your entries: <code className="font-mono">{JSON.stringify(togglDebug.seen)}</code></p>
+                    <p className="text-[11px] text-amber-700 mt-1">Make sure you selected the correct Toggl project above.</p>
+                  </div>
+                ) : hoursProject.toggl_project_id && !loadingTogglEntries ? (
+                  <p className="text-[13px] text-muted text-center py-6">Click Refresh to load Toggl entries.</p>
+                ) : null}
               </div>
             )}
           </div>

@@ -69,7 +69,7 @@ export async function POST(
 
   if (relevant.length === 0) {
     // Return debug info to help diagnose mismatches
-    const sampleProjectIds = [...new Set(allEntries.slice(0, 20).map((e) => e.project_id))];
+    const sampleProjectIds = Array.from(new Set(allEntries.slice(0, 20).map((e) => e.project_id)));
     return NextResponse.json({
       synced: 0,
       skipped: 0,
