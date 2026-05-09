@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionClient, adminDb, docToProject } from "@/lib/firebase/helpers";
+import { getSessionClient, adminDb, docToProject, effectiveClientId } from "@/lib/firebase/helpers";
 
 export async function GET() {
   const client = await getSessionClient();
@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const snap = await adminDb
       .collection("projects")
-      .where("client_id", "==", client.id)
+      .where("client_id", "==", effectiveClientId(client))
       .orderBy("created_at")
       .get();
 

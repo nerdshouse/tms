@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
+import { adminDb, getSessionClient, effectiveClientId } from "@/lib/firebase/helpers";
 import { sendTicketCreatedEmail } from "@/lib/email";
 import { logEvent } from "@/lib/log";
 import admin from "firebase-admin";
@@ -34,17 +34,29 @@ export async function POST(request: Request) {
     }
   }
 
-  // Admin creating on behalf of a client
-  let clientId      = client.id;
+  // Resolve the effective client — contacts file under their parent client
+  let clientId      = effectiveClientId(client);
   let clientName    = client.name;
   let clientEmail   = client.email;
   let clientCompany = client.company;
 
+  // If contact, pull parent client's name/company so tickets display correctly
+  if (client.is_contact && client.parent_client_id) {
+    const parentSnap = await adminDb.collection("clients").doc(client.parent_client_id).get();
+    if (parentSnap.exists) {
+      const pd  = parentSnap.data()!;
+      clientName    = pd.name;
+      clientCompany = pd.company ?? "";
+      // keep clientEmail as the contact's own email so admins know who submitted
+    }
+  }
+
+  // Admin creating on behalf of a client
   const forClientId = formData.get("for_client_id") as string | null;
   if (client.is_admin && forClientId) {
     const cSnap = await adminDb.collection("clients").doc(forClientId).get();
     if (cSnap.exists) {
-      const cd    = cSnap.data()!;
+      const cd  = cSnap.data()!;
       clientId      = forClientId;
       clientName    = cd.name;
       clientEmail   = cd.email;
