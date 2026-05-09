@@ -3,14 +3,14 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Plus, Trash2, Mail, UserCheck, Users, X, Loader2, Pencil, AlertTriangle } from "lucide-react";
+import { ChevronLeft, Plus, Trash2, Mail, UserCheck, Users, X, Loader2, Pencil, AlertTriangle, Clock } from "lucide-react";
 import Sheet from "@/components/ui/Sheet";
 import AddProjectSheet from "@/components/admin/AddProjectSheet";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
 import { formatIST } from "@/lib/utils";
 import { useRealtime } from "@/lib/use-realtime";
-import type { Client, Project, Ticket, TeamMember, ClientContact, Status, Priority } from "@/types";
+import type { Client, Project, Ticket, TeamMember, ClientContact, Status, Priority, ProjectHourEntry } from "@/types";
 
 type TabId = "overview" | "tickets" | "projects" | "team" | "analytics";
 
@@ -69,6 +69,15 @@ export default function ClientDetail({
   // Projects (realtime)
   const [projects, setProjects]               = useState(initialProjects);
   const [removingProjectId, setRemovingProjectId] = useState<string | null>(null);
+
+  // Hours management
+  const [hoursProject, setHoursProject]   = useState<Project | null>(null);
+  const [hourEntries, setHourEntries]     = useState<ProjectHourEntry[]>([]);
+  const [loadingHours, setLoadingHours]   = useState(false);
+  const [hourForm, setHourForm]           = useState({ description: "", hours: "", date: new Date().toISOString().slice(0, 10) });
+  const [editingHour, setEditingHour]     = useState<ProjectHourEntry | null>(null);
+  const [savingHour, setSavingHour]       = useState(false);
+  const [deletingHourId, setDeletingHourId] = useState<string | null>(null);
 
   // POC
   const [pocId, setPocId]     = useState(client.poc_id ?? "");
@@ -159,6 +168,63 @@ export default function ClientDetail({
     });
     setAssignedMemberIds(ids);
     setSavingAssigned(false);
+  }
+
+  async function openHoursSheet(project: Project) {
+    setHoursProject(project);
+    setHourForm({ description: "", hours: "", date: new Date().toISOString().slice(0, 10) });
+    setEditingHour(null);
+    setLoadingHours(true);
+    const res = await fetch(`/api/projects/${project.id}/hours`);
+    if (res.ok) setHourEntries(await res.json());
+    setLoadingHours(false);
+  }
+
+  async function submitHourEntry(e: React.FormEvent) {
+    e.preventDefault();
+    if (!hoursProject) return;
+    setSavingHour(true);
+    const payload = { description: hourForm.description, hours: Number(hourForm.hours), date: hourForm.date };
+
+    if (editingHour) {
+      const res = await fetch(`/api/projects/${hoursProject.id}/hours/${editingHour.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const delta = Number(hourForm.hours) - editingHour.hours;
+        setHourEntries((prev) => prev.map((e) => e.id === editingHour.id ? { ...e, ...payload } : e));
+        setProjects((prev) => prev.map((p) => p.id === hoursProject.id
+          ? { ...p, total_hours: (p.total_hours ?? 0) + delta }
+          : p));
+      }
+      setEditingHour(null);
+    } else {
+      const res = await fetch(`/api/projects/${hoursProject.id}/hours`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const entry: ProjectHourEntry = await res.json();
+        setHourEntries((prev) => [entry, ...prev]);
+        setProjects((prev) => prev.map((p) => p.id === hoursProject.id
+          ? { ...p, total_hours: (p.total_hours ?? 0) + Number(hourForm.hours) }
+          : p));
+      }
+    }
+    setHourForm({ description: "", hours: "", date: new Date().toISOString().slice(0, 10) });
+    setSavingHour(false);
+  }
+
+  async function deleteHourEntry(entry: ProjectHourEntry) {
+    if (!hoursProject) return;
+    setDeletingHourId(entry.id);
+    const res = await fetch(`/api/projects/${hoursProject.id}/hours/${entry.id}`, { method: "DELETE" });
+    if (res.ok) {
+      setHourEntries((prev) => prev.filter((e) => e.id !== entry.id));
+      setProjects((prev) => prev.map((p) => p.id === hoursProject.id
+        ? { ...p, total_hours: Math.max(0, (p.total_hours ?? 0) - entry.hours) }
+        : p));
+    }
+    setDeletingHourId(null);
   }
 
   function handleProjectAdded(project: Project) {
@@ -338,6 +404,11 @@ export default function ClientDetail({
                           {p.description && <p className="text-[11px] text-muted truncate">{p.description}</p>}
                         </div>
                         <span className="text-[11px] text-muted">{total} ticket{total !== 1 ? "s" : ""}</span>
+                        {(p.total_hours ?? 0) > 0 && (
+                          <span className="flex items-center gap-1 text-[11px] text-muted ml-3">
+                            <Clock size={11} />{(p.total_hours ?? 0).toFixed(1)}h
+                          </span>
+                        )}
                       </li>
                     );
                   })}
@@ -582,7 +653,7 @@ export default function ClientDetail({
                     </div>
 
                     {/* Progress bar */}
-                    <div>
+                    <div className="mb-3">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[11px] text-muted">Progress</span>
                         <span className="text-[11px] font-medium text-foreground">{donePct}%</span>
@@ -593,6 +664,21 @@ export default function ClientDetail({
                           style={{ width: `${donePct}%` }}
                         />
                       </div>
+                    </div>
+
+                    {/* Hours row */}
+                    <div className="flex items-center justify-between pt-3 border-t border-border">
+                      <div className="flex items-center gap-1.5 text-[12px] text-muted">
+                        <Clock size={12} />
+                        <span className="font-medium text-foreground">{(p.total_hours ?? 0).toFixed(1)}</span>
+                        <span>hrs logged</span>
+                      </div>
+                      <button
+                        onClick={() => openHoursSheet(p)}
+                        className="flex items-center gap-1 text-[11px] text-accent hover:text-accent/80 font-medium transition-colors"
+                      >
+                        <Plus size={11} /> Log Hours
+                      </button>
                     </div>
                   </div>
                 );
@@ -821,6 +907,103 @@ export default function ClientDetail({
 
       <Sheet open={addProjectOpen} onClose={() => setAddProjectOpen(false)} title="Add Project">
         <AddProjectSheet client={client} onSuccess={handleProjectAdded} onClose={() => setAddProjectOpen(false)} />
+      </Sheet>
+
+      {/* Hours management sheet */}
+      <Sheet
+        open={!!hoursProject}
+        onClose={() => { setHoursProject(null); setEditingHour(null); }}
+        title={hoursProject ? `Hours — ${hoursProject.name}` : "Hours"}
+      >
+        {hoursProject && (
+          <div className="space-y-5">
+            {/* Add / Edit form */}
+            <form onSubmit={submitHourEntry} className="space-y-3 bg-gray-50/60 border border-border rounded-xl p-4">
+              <p className="text-[12px] font-semibold text-foreground">{editingHour ? "Edit entry" : "Log hours"}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-muted mb-1">Date *</label>
+                  <input type="date" required value={hourForm.date}
+                    onChange={(e) => setHourForm((f) => ({ ...f, date: e.target.value }))}
+                    className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-muted mb-1">Hours *</label>
+                  <input type="number" required min="0.1" step="0.1" placeholder="1.5"
+                    value={hourForm.hours}
+                    onChange={(e) => setHourForm((f) => ({ ...f, hours: e.target.value }))}
+                    className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-muted mb-1">Description</label>
+                <input type="text" placeholder="What was worked on…"
+                  value={hourForm.description}
+                  onChange={(e) => setHourForm((f) => ({ ...f, description: e.target.value }))}
+                  className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition" />
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" disabled={savingHour}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition disabled:opacity-60">
+                  {savingHour && <Loader2 size={12} className="animate-spin" />}
+                  {editingHour ? "Save Changes" : "Add Entry"}
+                </button>
+                {editingHour && (
+                  <button type="button" onClick={() => { setEditingHour(null); setHourForm({ description: "", hours: "", date: new Date().toISOString().slice(0, 10) }); }}
+                    className="px-3.5 py-2 text-[13px] text-muted border border-border rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+
+            {/* Total */}
+            <div className="flex items-center gap-2 px-1">
+              <Clock size={13} className="text-muted" />
+              <span className="text-[13px] text-muted">Total:</span>
+              <span className="text-[13px] font-semibold text-foreground">
+                {(projects.find((p) => p.id === hoursProject.id)?.total_hours ?? 0).toFixed(1)} hrs
+              </span>
+            </div>
+
+            {/* Entries list */}
+            {loadingHours ? (
+              <div className="flex justify-center py-6"><Loader2 size={18} className="animate-spin text-muted" /></div>
+            ) : hourEntries.length === 0 ? (
+              <p className="text-[13px] text-muted text-center py-6">No entries yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {hourEntries.map((entry) => (
+                  <div key={entry.id} className="flex items-start gap-3 bg-card border border-border rounded-lg px-4 py-3 group">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-[13px] font-semibold text-foreground">{entry.hours.toFixed(1)}h</span>
+                        <span className="text-[11px] text-muted">{entry.date}</span>
+                        <span className="text-[11px] text-muted/60">· {entry.added_by_name}</span>
+                      </div>
+                      {entry.description && (
+                        <p className="text-[12px] text-muted truncate">{entry.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                      <button
+                        onClick={() => { setEditingHour(entry); setHourForm({ description: entry.description, hours: String(entry.hours), date: entry.date }); }}
+                        className="text-muted hover:text-accent transition-colors"
+                      ><Pencil size={12} /></button>
+                      <button
+                        onClick={() => deleteHourEntry(entry)}
+                        disabled={deletingHourId === entry.id}
+                        className="text-muted hover:text-red-500 transition-colors disabled:opacity-40"
+                      >
+                        {deletingHourId === entry.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </Sheet>
 
       {/* Edit client sheet */}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, Clock } from "lucide-react";
 import type { Project, Status } from "@/types";
 
 type ProjectWithCounts = Project & {
@@ -116,6 +116,15 @@ export default function ProjectsOverview({ projects, isAdmin }: Props) {
                       style={{ width: `${progress}%`, backgroundColor: project.color }}
                     />
                   </div>
+                </div>
+              )}
+
+              {/* Hours */}
+              {(project.total_hours ?? 0) > 0 && (
+                <div className="flex items-center gap-1.5 text-[12px] text-muted pt-1 border-t border-border">
+                  <Clock size={12} />
+                  <span className="font-medium text-foreground">{(project.total_hours ?? 0).toFixed(1)}</span>
+                  <span>hrs logged</span>
                 </div>
               )}
 

@@ -4,7 +4,7 @@
  */
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
-import type { Client, Ticket, TicketUpdate, Project, TeamMember, ClientContact, SystemLog } from "@/types";
+import type { Client, Ticket, TicketUpdate, Project, TeamMember, ClientContact, SystemLog, ProjectHourEntry } from "@/types";
 import type { firestore } from "firebase-admin";
 
 // ── Session helpers ───────────────────────────────────────────────────────────
@@ -116,9 +116,10 @@ export function docToProject(snap: firestore.DocumentSnapshot): Project {
     id:          snap.id,
     name:        d.name,
     client_id:   d.client_id,
-    color:       d.color ?? "#4a4fe0",
-    description: d.description ?? undefined,
-    created_at:  tsToIso(d.created_at),
+    color:        d.color ?? "#4a4fe0",
+    description:  d.description ?? undefined,
+    total_hours:  typeof d.total_hours === "number" ? d.total_hours : 0,
+    created_at:   tsToIso(d.created_at),
     clients:     d.client_name ? { name: d.client_name, company: d.client_company ?? "" } : undefined,
   };
 }
@@ -145,6 +146,19 @@ export function docToContact(snap: firestore.DocumentSnapshot): ClientContact {
     email:      d.email,
     status:     d.status ?? "pending",
     created_at: tsToIso(d.created_at),
+  };
+}
+
+export function docToHourEntry(snap: firestore.DocumentSnapshot): ProjectHourEntry {
+  const d = snap.data()!;
+  return {
+    id:            snap.id,
+    project_id:    d.project_id,
+    description:   d.description ?? "",
+    hours:         typeof d.hours === "number" ? d.hours : 0,
+    date:          d.date ?? "",
+    added_by_name: d.added_by_name ?? "",
+    created_at:    tsToIso(d.created_at),
   };
 }
 

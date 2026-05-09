@@ -42,9 +42,20 @@ export interface Project {
   client_id: string;
   color: string;
   description?: string;
+  total_hours?: number;
   created_at: string;
   clients?: Pick<Client, "name" | "company">;
   ticket_count?: number;
+}
+
+export interface ProjectHourEntry {
+  id: string;
+  project_id: string;
+  description: string;
+  hours: number;
+  date: string;
+  added_by_name: string;
+  created_at: string;
 }
 
 export interface TeamMember {
