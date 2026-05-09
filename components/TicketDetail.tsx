@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Loader2, Send, Paperclip } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, Loader2, Send, Paperclip, Trash2, AlertTriangle } from "lucide-react";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
 import { formatIST, formatISTShort, formatDate } from "@/lib/utils";
@@ -24,12 +25,15 @@ const STATUS_OPTIONS: { value: Status; label: string }[] = [
 ];
 
 export default function TicketDetail({ ticket, updates, currentClient, teamMembers }: TicketDetailProps) {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [newStatus, setNewStatus] = useState<Status>(ticket.status);
   const [newAssigneeId, setNewAssigneeId] = useState<string>(ticket.assignee_id ?? "");
   const [newDueDate, setNewDueDate] = useState<string>(ticket.due_date ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [localUpdates, setLocalUpdates] = useState(updates);
   const [localTicket, setLocalTicket] = useState(ticket);
 
@@ -114,12 +118,43 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
     }
   }
 
+  async function handleDelete() {
+    setDeleting(true);
+    await fetch(`/api/tickets/${ticket.id}`, { method: "DELETE" });
+    router.push("/");
+  }
+
   return (
     <div className="p-6">
-      <Link href="/" className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-foreground mb-5 transition-colors">
-        <ChevronLeft size={14} />
-        Back to requests
-      </Link>
+      <div className="flex items-center justify-between mb-5">
+        <Link href="/" className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-foreground transition-colors">
+          <ChevronLeft size={14} />
+          Back to requests
+        </Link>
+        {currentClient.is_admin && (
+          !confirmDelete ? (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition"
+            >
+              <Trash2 size={12} /> Delete Request
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
+              <AlertTriangle size={12} className="text-red-600" />
+              <span className="text-[12px] text-red-700 font-medium">Delete this request?</span>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="text-[12px] font-semibold text-red-600 hover:text-red-800 disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : "Yes, delete"}
+              </button>
+              <button onClick={() => setConfirmDelete(false)} className="text-[12px] text-muted hover:text-foreground">Cancel</button>
+            </div>
+          )
+        )}
+      </div>
 
       <div className="flex gap-6">
         {/* Main */}

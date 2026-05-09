@@ -3,6 +3,7 @@ import admin from "firebase-admin";
 
 export type ActionType =
   | "ticket_created"
+  | "ticket_deleted"
   | "ticket_status_changed"
   | "ticket_assigned"
   | "comment_posted"

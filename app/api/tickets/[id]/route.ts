@@ -6,6 +6,41 @@ import { logEvent } from "@/lib/log";
 import admin from "firebase-admin";
 import type { Status } from "@/types";
 
+export async function DELETE(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  const me = await getSessionClient();
+  if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const snap = await adminDb.collection("tickets").doc(params.id).get();
+  if (!snap.exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const title = snap.data()!.title as string;
+
+  // Delete ticket + all its updates in a batch
+  const updatesSnap = await adminDb
+    .collection("ticket_updates")
+    .where("ticket_id", "==", params.id)
+    .get();
+
+  const batch = adminDb.batch();
+  batch.delete(adminDb.collection("tickets").doc(params.id));
+  updatesSnap.docs.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
+
+  logEvent({
+    action_type: "ticket_deleted",
+    detail:      `"${title}" deleted`,
+    entity_id:   params.id,
+    entity_type: "ticket",
+    user_id:     me.id,
+    user_name:   me.name,
+  }).catch(console.error);
+
+  return NextResponse.json({ ok: true });
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
