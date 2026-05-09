@@ -33,15 +33,16 @@ export async function POST(
   if (!togglProjectId) return NextResponse.json({ error: "No Toggl project mapped to this project" }, { status: 400 });
 
   // Fetch time entries from Toggl (last 90 days)
-  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const auth  = Buffer.from(`${api_token}:api_token`).toString("base64");
+  const since   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const until   = new Date().toISOString().slice(0, 10);
+  const auth    = Buffer.from(`${api_token}:api_token`).toString("base64");
 
   let allEntries: TogglTimeEntry[] = [];
   let page = 1;
 
   while (true) {
-    const url = `https://api.track.toggl.com/api/v9/me/time_entries?start_date=${since}&meta=true`;
-    const res = await fetch(url + (page > 1 ? `&page=${page}` : ""), {
+    const url = `https://api.track.toggl.com/api/v9/me/time_entries?start_date=${since}&end_date=${until}&meta=true&page=${page}`;
+    const res = await fetch(url, {
       headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
     });
 
@@ -54,7 +55,7 @@ export async function POST(
     if (!Array.isArray(batch) || batch.length === 0) break;
 
     allEntries = allEntries.concat(batch);
-    if (batch.length < 50) break; // less than full page = last page
+    if (batch.length < 50) break;
     page++;
   }
 
