@@ -59,13 +59,27 @@ export async function POST(
     page++;
   }
 
+  // Normalise to number for safe comparison (Firestore may store as string)
+  const togglProjectIdNum = Number(togglProjectId);
+
   // Filter to entries for the mapped project and only completed ones (duration > 0)
   const relevant = allEntries.filter(
-    (e) => e.project_id === togglProjectId && e.duration > 0
+    (e) => Number(e.project_id) === togglProjectIdNum && e.duration > 0
   );
 
   if (relevant.length === 0) {
-    return NextResponse.json({ synced: 0, skipped: 0 });
+    // Return debug info to help diagnose mismatches
+    const sampleProjectIds = [...new Set(allEntries.slice(0, 20).map((e) => e.project_id))];
+    return NextResponse.json({
+      synced: 0,
+      skipped: 0,
+      debug: {
+        total_fetched: allEntries.length,
+        looking_for_project_id: togglProjectIdNum,
+        sample_project_ids_in_entries: sampleProjectIds,
+        running_entries_excluded: allEntries.filter((e) => e.duration <= 0).length,
+      },
+    });
   }
 
   // Load existing entries to check for duplicates
