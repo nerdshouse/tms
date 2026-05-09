@@ -195,10 +195,10 @@ export default function Sidebar({ user, projects, poc }: SidebarProps) {
               </div>
             </div>
 
-            {/* POC section — client role only */}
-            {poc && (
-              <div className="pt-4 border-t border-border mt-3">
-                <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Your POC</p>
+            {/* POC section — always shown for client role */}
+            <div className="pt-4 border-t border-border mt-3">
+              <p className="px-3 text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Your POC</p>
+              {poc ? (
                 <div className="px-3 py-2 rounded-lg bg-gray-50/80">
                   <div className="flex items-center gap-2 mb-0.5">
                     <div className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center text-[10px] font-semibold text-accent flex-shrink-0">
@@ -208,8 +208,10 @@ export default function Sidebar({ user, projects, poc }: SidebarProps) {
                   </div>
                   <p className="text-[11px] text-muted truncate pl-8">{poc.email}</p>
                 </div>
-              </div>
-            )}
+              ) : (
+                <p className="px-3 text-[12px] text-muted">No POC assigned yet</p>
+              )}
+            </div>
           </>
         )}
       </nav>
