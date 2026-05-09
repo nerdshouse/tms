@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Pencil, Loader2 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -23,6 +23,9 @@ export default function TeamPage({ members: initial, canInvite = false, canRemov
   const [members, setMembers]   = useState(initial);
   const [addOpen, setAddOpen]   = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [editMember, setEditMember] = useState<TeamMember | null>(null);
+  const [editForm, setEditForm]     = useState({ name: "", email: "", role: "Developer" as TeamRole, status: "active" as import("@/types").MemberStatus });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // ── Realtime: team_members ────────────────────────────────────────────────
   useRealtime<TeamMember>({
@@ -41,6 +44,28 @@ export default function TeamPage({ members: initial, canInvite = false, canRemov
     setRemovingId(id);
     await fetch(`/api/team-members/${id}`, { method: "DELETE" });
     setRemovingId(null);
+  }
+
+  function openEdit(m: TeamMember) {
+    setEditMember(m);
+    setEditForm({ name: m.name, email: m.email, role: m.role, status: m.status });
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editMember) return;
+    setSavingEdit(true);
+    const res = await fetch(`/api/team-members/${editMember.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setMembers((prev) => prev.map((m) => m.id === editMember.id ? { ...m, ...data } : m));
+      setEditMember(null);
+    }
+    setSavingEdit(false);
   }
 
   const chartData = members.map((m) => ({
@@ -109,15 +134,27 @@ export default function TeamPage({ members: initial, canInvite = false, canRemov
                     }`}>{m.status}</span>
                   </td>
                   <td className="px-4 py-3">
-                    {canRemove && (
-                      <button
-                        onClick={() => removeMember(m.id)}
-                        disabled={removingId === m.id}
-                        className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-500 transition-all disabled:opacity-40"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                      {canInvite && (
+                        <button
+                          onClick={() => openEdit(m)}
+                          className="text-muted hover:text-accent transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                      )}
+                      {canRemove && (
+                        <button
+                          onClick={() => removeMember(m.id)}
+                          disabled={removingId === m.id}
+                          className="text-muted hover:text-red-500 transition-colors disabled:opacity-40"
+                          title="Remove"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -154,6 +191,45 @@ export default function TeamPage({ members: initial, canInvite = false, canRemov
 
       <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="Invite Team Member">
         <AddTeamMemberSheet onSuccess={handleAdded} onClose={() => setAddOpen(false)} />
+      </Sheet>
+
+      <Sheet open={!!editMember} onClose={() => setEditMember(null)} title="Edit Team Member">
+        <form onSubmit={saveEdit} className="space-y-4">
+          <div>
+            <label className="block text-[12px] font-medium text-foreground mb-1.5">Full name <span className="text-red-500">*</span></label>
+            <input type="text" required value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+              className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition" />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-foreground mb-1.5">Work email <span className="text-red-500">*</span></label>
+            <input type="email" required value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+              className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition" />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-foreground mb-1.5">Role</label>
+            <select value={editForm.role} onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value as TeamRole }))}
+              className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition">
+              {(["Admin", "Developer", "Designer", "QA"] as TeamRole[]).map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-foreground mb-1.5">Status</label>
+            <select value={editForm.status} onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value as import("@/types").MemberStatus }))}
+              className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button type="submit" disabled={savingEdit} className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition disabled:opacity-60">
+              {savingEdit && <Loader2 size={13} className="animate-spin" />}
+              {savingEdit ? "Saving…" : "Save Changes"}
+            </button>
+            <button type="button" onClick={() => setEditMember(null)} className="px-4 py-2 text-[13px] text-muted border border-border rounded-lg hover:bg-gray-50 transition">
+              Cancel
+            </button>
+          </div>
+        </form>
       </Sheet>
     </div>
   );

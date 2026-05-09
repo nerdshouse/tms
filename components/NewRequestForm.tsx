@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useDropzone } from "react-dropzone";
 import { useRouter } from "next/navigation";
 import { Upload, X, Loader2, FileText } from "lucide-react";
 import { auth, uploadAttachment } from "@/lib/firebase/client";
-import type { Priority, TicketType, Project } from "@/types";
+import type { Priority, TicketType, Project, Client } from "@/types";
 
 const MODULES = [
   "Authentication", "Dashboard", "Billing", "Integrations",
@@ -21,9 +21,57 @@ const PRIORITIES: { value: Priority; label: string }[] = [
 const TYPES: TicketType[] = ["Bug", "Feature", "Performance"];
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 
-export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?: string }) {
+interface Props {
+  defaultProjectId?: string;
+  isAdmin?: boolean;
+  adminClients?: Client[];
+  adminProjects?: Project[];
+}
+
+export default function NewRequestForm({
+  defaultProjectId,
+  isAdmin = false,
+  adminClients = [],
+  adminProjects = [],
+}: Props) {
   const router = useRouter();
-  const [projects, setProjects] = useState<Project[]>([]);
+
+  // ── Admin: client + project selection ──────────────────────────────────────
+  const initClientId = useMemo(() => {
+    if (!isAdmin || adminClients.length === 0) return "";
+    if (defaultProjectId) {
+      const proj = adminProjects.find((p) => p.id === defaultProjectId);
+      if (proj) return proj.client_id;
+    }
+    return adminClients[0].id;
+  }, [isAdmin, adminClients, adminProjects, defaultProjectId]);
+
+  const [selectedClientId, setSelectedClientId] = useState(initClientId);
+
+  const clientProjects = useMemo(
+    () => (isAdmin ? adminProjects.filter((p) => p.client_id === selectedClientId) : []),
+    [isAdmin, adminProjects, selectedClientId]
+  );
+
+  // ── Client: projects fetched from API ───────────────────────────────────────
+  const [fetchedProjects, setFetchedProjects] = useState<Project[]>([]);
+
+  useEffect(() => {
+    if (isAdmin) return;
+    fetch("/api/me/projects")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: Project[]) => {
+        setFetchedProjects(data);
+        if (data.length > 0 && !defaultProjectId) {
+          setForm((f) => ({ ...f, project_id: data[0].id }));
+        }
+      })
+      .catch(() => {});
+  }, [isAdmin, defaultProjectId]);
+
+  const projects = isAdmin ? clientProjects : fetchedProjects;
+
+  // ── Form state ──────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
     title: "",
     priority: "P1" as Priority,
@@ -32,26 +80,26 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
     description: "",
     project_id: defaultProjectId ?? "",
   });
+
+  // Sync project_id when clientProjects change (admin)
+  useEffect(() => {
+    if (!isAdmin) return;
+    const first = clientProjects[0];
+    setForm((f) => ({ ...f, project_id: first?.id ?? "" }));
+  }, [isAdmin, clientProjects]);
+
+  function handleClientChange(clientId: string) {
+    setSelectedClientId(clientId);
+    // project_id will be reset by the useEffect above
+  }
+
   const [pageUrl, setPageUrl] = useState("");
   const [pageUrlError, setPageUrlError] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [fileSizeError, setFileSizeError] = useState("");
-  // null = idle, 0-100 = uploading
   const [uploadPct, setUploadPct] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    fetch("/api/me/projects")
-      .then((r) => r.ok ? r.json() : [])
-      .then((data: Project[]) => {
-        setProjects(data);
-        if (data.length > 0 && !defaultProjectId) {
-          setForm((f) => ({ ...f, project_id: data[0].id }));
-        }
-      })
-      .catch(() => {});
-  }, [defaultProjectId]);
 
   const onDrop = useCallback((accepted: File[], rejected: import("react-dropzone").FileRejection[]) => {
     const tooBig = rejected.some((r) => r.errors.some((e) => e.code === "file-too-large"));
@@ -87,6 +135,10 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isAdmin && !selectedClientId) {
+      setError("Please select a client.");
+      return;
+    }
     if (!form.project_id && projects.length > 0) {
       setError("Please select a project.");
       return;
@@ -117,6 +169,7 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
 
       const body = new FormData();
       Object.entries(form).forEach(([k, v]) => body.append(k, v));
+      if (isAdmin && selectedClientId) body.append("for_client_id", selectedClientId);
       if (pageUrl.trim()) body.append("page_url", pageUrl.trim());
       if (attachments.length > 0) body.append("attachments", JSON.stringify(attachments));
 
@@ -153,6 +206,33 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
         />
       </div>
 
+      {/* Admin: Client selector */}
+      {isAdmin && (
+        <div>
+          <label className="block text-[13px] font-medium text-foreground mb-1.5">
+            Client <span className="text-red-500">*</span>
+          </label>
+          {adminClients.length === 0 ? (
+            <p className="text-[12px] text-muted bg-gray-50 border border-border rounded-lg px-3 py-2">
+              No clients found.
+            </p>
+          ) : (
+            <select
+              value={selectedClientId}
+              onChange={(e) => handleClientChange(e.target.value)}
+              required
+              className={field}
+            >
+              {adminClients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}{c.company ? ` — ${c.company}` : ""}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
       {/* Project */}
       <div>
         <label className="block text-[13px] font-medium text-foreground mb-1.5">
@@ -160,7 +240,9 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
         </label>
         {projects.length === 0 ? (
           <p className="text-[12px] text-muted bg-gray-50 border border-border rounded-lg px-3 py-2">
-            No projects yet — ask your account manager to set one up.
+            {isAdmin
+              ? "No projects for this client yet."
+              : "No projects yet — ask your account manager to set one up."}
           </p>
         ) : (
           <select
@@ -266,7 +348,6 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
           <p className="text-[11px] text-red-500 mt-1">{fileSizeError}</p>
         )}
 
-        {/* Upload progress bar */}
         {uploadPct !== null && (
           <div className="mt-2">
             <div className="flex items-center justify-between text-[11px] text-muted mb-1">
@@ -282,7 +363,6 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
           </div>
         )}
 
-        {/* File previews */}
         {files.length > 0 && (
           <ul className="mt-2 space-y-2">
             {files.map((f, i) => {

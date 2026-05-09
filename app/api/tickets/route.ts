@@ -34,6 +34,24 @@ export async function POST(request: Request) {
     }
   }
 
+  // Admin creating on behalf of a client
+  let clientId      = client.id;
+  let clientName    = client.name;
+  let clientEmail   = client.email;
+  let clientCompany = client.company;
+
+  const forClientId = formData.get("for_client_id") as string | null;
+  if (client.is_admin && forClientId) {
+    const cSnap = await adminDb.collection("clients").doc(forClientId).get();
+    if (cSnap.exists) {
+      const cd    = cSnap.data()!;
+      clientId      = forClientId;
+      clientName    = cd.name;
+      clientEmail   = cd.email;
+      clientCompany = cd.company ?? "";
+    }
+  }
+
   const now = admin.firestore.FieldValue.serverTimestamp();
   const ref = await adminDb.collection("tickets").add({
     title,
@@ -42,10 +60,10 @@ export async function POST(request: Request) {
     type: ticketType,
     module: ticketModule,
     status: "open",
-    client_id:        client.id,
-    client_name:      client.name,
-    client_email:     client.email,
-    client_company:   client.company,
+    client_id:        clientId,
+    client_name:      clientName,
+    client_email:     clientEmail,
+    client_company:   clientCompany,
     project_id:       projectId || null,
     project_name:     projectName,
     project_color:    projectColor,
@@ -61,8 +79,8 @@ export async function POST(request: Request) {
   sendTicketCreatedEmail({
     ticketId:    ref.id,
     title,
-    clientName:  client.name,
-    clientEmail: client.email,
+    clientName:  clientName,
+    clientEmail: clientEmail,
     priority,
     type:        ticketType,
     module:      ticketModule,
@@ -70,11 +88,11 @@ export async function POST(request: Request) {
 
   logEvent({
     action_type: "ticket_created",
-    detail:      `"${title}" created by ${client.name}`,
+    detail:      `"${title}" created by ${clientName}`,
     entity_id:   ref.id,
     entity_type: "ticket",
-    user_id:     client.id,
-    user_name:   client.name,
+    user_id:     clientId,
+    user_name:   clientName,
   }).catch(console.error);
 
   return NextResponse.json({ id: ref.id });

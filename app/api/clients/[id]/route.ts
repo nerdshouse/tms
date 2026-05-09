@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
+import { adminDb, adminAuth, getSessionClient } from "@/lib/firebase/helpers";
 import { logEvent } from "@/lib/log";
 
 export async function PATCH(
@@ -42,6 +42,36 @@ export async function PATCH(
       user_name:   me.name,
     }).catch(console.error);
   }
+
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  const me = await getSessionClient();
+  if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (me.team_role && me.team_role !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const snap = await adminDb.collection("clients").doc(params.id).get();
+  if (!snap.exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const clientName = snap.data()!.name as string;
+
+  await adminDb.collection("clients").doc(params.id).delete();
+
+  // Delete Firebase Auth user (best effort — may not exist)
+  try { await adminAuth.deleteUser(params.id); } catch { /* ignore */ }
+
+  logEvent({
+    action_type: "client_deleted",
+    detail:      `${clientName} deleted`,
+    entity_id:   params.id,
+    entity_type: "client",
+    user_id:     me.id,
+    user_name:   me.name,
+  }).catch(console.error);
 
   return NextResponse.json({ ok: true });
 }

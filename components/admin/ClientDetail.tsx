@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Plus, Trash2, Mail, UserCheck, Users, X, Loader2 } from "lucide-react";
+import { ChevronLeft, Plus, Trash2, Mail, UserCheck, Users, X, Loader2, Pencil, AlertTriangle } from "lucide-react";
 import Sheet from "@/components/ui/Sheet";
 import AddProjectSheet from "@/components/admin/AddProjectSheet";
 import { StatusIcon } from "@/components/ui/StatusIcon";
@@ -55,6 +55,16 @@ export default function ClientDetail({
   const router = useRouter();
   const [activeTab, setActiveTab]   = useState<TabId>("overview");
   const [addProjectOpen, setAddProjectOpen] = useState(false);
+
+  // Edit client
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: client.name, company: client.company, status: client.status });
+  const [saving, setSaving]     = useState(false);
+  const [localClient, setLocalClient] = useState({ name: client.name, company: client.company, status: client.status });
+
+  // Delete client
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting]           = useState(false);
 
   // Projects (realtime)
   const [projects, setProjects]               = useState(initialProjects);
@@ -119,6 +129,25 @@ export default function ClientDetail({
     });
     setPocId(value);
     setSavingPoc(false);
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    await fetch(`/api/clients/${client.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    setLocalClient({ ...editForm });
+    setSaving(false);
+    setEditOpen(false);
+  }
+
+  async function deleteClient() {
+    setDeleting(true);
+    await fetch(`/api/clients/${client.id}`, { method: "DELETE" });
+    router.push("/admin/clients");
   }
 
   async function saveAssignedMembers(ids: string[]) {
@@ -186,19 +215,50 @@ export default function ClientDetail({
       {/* Client header */}
       <div className="flex items-center gap-4 mb-5">
         <div className="w-11 h-11 rounded-full bg-accent/15 flex items-center justify-center flex-shrink-0">
-          <span className="text-accent text-lg font-semibold">{client.name[0]?.toUpperCase()}</span>
+          <span className="text-accent text-lg font-semibold">{localClient.name[0]?.toUpperCase()}</span>
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="text-[17px] font-semibold text-foreground">{client.name}</h1>
+            <h1 className="text-[17px] font-semibold text-foreground">{localClient.name}</h1>
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-              client.status === "active"
+              localClient.status === "active"
                 ? "bg-green-50 text-green-700 border-green-100"
                 : "bg-gray-100 text-gray-500 border-gray-200"
-            }`}>{client.status}</span>
+            }`}>{localClient.status}</span>
           </div>
-          <p className="text-[12px] text-muted truncate">{client.company}{client.company && " · "}{client.email}</p>
+          <p className="text-[12px] text-muted truncate">{localClient.company}{localClient.company && " · "}{client.email}</p>
         </div>
+        {isFullAdmin && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => { setEditForm({ name: localClient.name, company: localClient.company, status: localClient.status }); setEditOpen(true); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-muted border border-border rounded-lg hover:bg-gray-50 hover:text-foreground transition"
+            >
+              <Pencil size={12} /> Edit
+            </button>
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition"
+              >
+                <Trash2 size={12} /> Delete
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
+                <AlertTriangle size={12} className="text-red-600" />
+                <span className="text-[12px] text-red-700 font-medium">Confirm?</span>
+                <button
+                  onClick={deleteClient}
+                  disabled={deleting}
+                  className="text-[12px] font-semibold text-red-600 hover:text-red-800 disabled:opacity-50"
+                >
+                  {deleting ? "Deleting…" : "Yes, delete"}
+                </button>
+                <button onClick={() => setConfirmDelete(false)} className="text-[12px] text-muted hover:text-foreground">Cancel</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -293,11 +353,11 @@ export default function ClientDetail({
               <dl className="space-y-2.5 text-[12px]">
                 <div>
                   <dt className="text-muted text-[11px] mb-0.5">Name</dt>
-                  <dd className="font-medium text-foreground">{client.name}</dd>
+                  <dd className="font-medium text-foreground">{localClient.name}</dd>
                 </div>
                 <div>
                   <dt className="text-muted text-[11px] mb-0.5">Company</dt>
-                  <dd className="text-foreground">{client.company || "—"}</dd>
+                  <dd className="text-foreground">{localClient.company || "—"}</dd>
                 </div>
                 <div>
                   <dt className="text-muted text-[11px] mb-0.5">Email</dt>
@@ -309,10 +369,10 @@ export default function ClientDetail({
                   <dt className="text-muted text-[11px] mb-0.5">Status</dt>
                   <dd>
                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                      client.status === "active"
+                      localClient.status === "active"
                         ? "bg-green-50 text-green-700 border-green-100"
                         : "bg-gray-100 text-gray-500 border-gray-200"
-                    }`}>{client.status}</span>
+                    }`}>{localClient.status}</span>
                   </dd>
                 </div>
                 <div>
@@ -761,6 +821,50 @@ export default function ClientDetail({
 
       <Sheet open={addProjectOpen} onClose={() => setAddProjectOpen(false)} title="Add Project">
         <AddProjectSheet client={client} onSuccess={handleProjectAdded} onClose={() => setAddProjectOpen(false)} />
+      </Sheet>
+
+      {/* Edit client sheet */}
+      <Sheet open={editOpen} onClose={() => setEditOpen(false)} title="Edit Client">
+        <form onSubmit={saveEdit} className="space-y-4">
+          <div>
+            <label className="block text-[12px] font-medium text-foreground mb-1.5">Full name <span className="text-red-500">*</span></label>
+            <input
+              type="text" required
+              value={editForm.name}
+              onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+              className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition"
+            />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-foreground mb-1.5">Company</label>
+            <input
+              type="text"
+              value={editForm.company}
+              onChange={(e) => setEditForm((f) => ({ ...f, company: e.target.value }))}
+              className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition"
+            />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-foreground mb-1.5">Status</label>
+            <select
+              value={editForm.status}
+              onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value as import("@/types").ClientStatus }))}
+              className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition"
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button type="submit" disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition disabled:opacity-60">
+              {saving && <Loader2 size={13} className="animate-spin" />}
+              {saving ? "Saving…" : "Save Changes"}
+            </button>
+            <button type="button" onClick={() => setEditOpen(false)} className="px-4 py-2 text-[13px] text-muted border border-border rounded-lg hover:bg-gray-50 transition">
+              Cancel
+            </button>
+          </div>
+        </form>
       </Sheet>
     </div>
   );
