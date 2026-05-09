@@ -10,7 +10,7 @@ import AddTeamMemberSheet from "@/components/admin/AddTeamMemberSheet";
 import { useRealtime } from "@/lib/use-realtime";
 import type { TeamMember, TeamRole } from "@/types";
 
-interface Props { members: TeamMember[] }
+interface Props { members: TeamMember[]; canInvite?: boolean }
 
 const ROLE_COLORS: Record<TeamRole, string> = {
   Admin:     "#4a4fe0",
@@ -19,7 +19,7 @@ const ROLE_COLORS: Record<TeamRole, string> = {
   QA:        "#ea580c",
 };
 
-export default function TeamPage({ members: initial }: Props) {
+export default function TeamPage({ members: initial, canInvite = false }: Props) {
   const [members, setMembers]   = useState(initial);
   const [addOpen, setAddOpen]   = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -59,12 +59,14 @@ export default function TeamPage({ members: initial }: Props) {
           <h1 className="text-[17px] font-semibold text-foreground">Team</h1>
           <p className="text-xs text-muted mt-0.5">{active} active · {members.length} total</p>
         </div>
-        <button
-          onClick={() => setAddOpen(true)}
-          className="flex items-center gap-2 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition"
-        >
-          <Plus size={14} /> Invite Member
-        </button>
+        {canInvite && (
+          <button
+            onClick={() => setAddOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition"
+          >
+            <Plus size={14} /> Invite Member
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-6 mb-6">

@@ -29,5 +29,7 @@ export default async function AdminTeamPage() {
     open_ticket_count: countMap[snap.id] ?? 0,
   }));
 
-  return <TeamPage members={members} />;
+  const isFullAdmin = !me.team_role || me.team_role === "Admin";
+
+  return <TeamPage members={members} canInvite={isFullAdmin} />;
 }

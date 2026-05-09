@@ -13,9 +13,10 @@ interface Props {
   clients: Client[];
   projects: Project[];
   ticketCounts: Record<string, number>;
+  canAddClient?: boolean;
 }
 
-export default function ClientsGrid({ clients: initial, projects: initialProjects, ticketCounts: initialCounts }: Props) {
+export default function ClientsGrid({ clients: initial, projects: initialProjects, ticketCounts: initialCounts, canAddClient = false }: Props) {
   const [clients, setClients]             = useState(initial);
   const [projects, setProjects]           = useState(initialProjects);
   const [ticketCounts]                    = useState(initialCounts);
@@ -59,13 +60,15 @@ export default function ClientsGrid({ clients: initial, projects: initialProject
           <h1 className="text-[17px] font-semibold text-foreground">Clients</h1>
           <p className="text-xs text-muted mt-0.5">{clients.length} clients</p>
         </div>
-        <button
-          onClick={() => setAddClientOpen(true)}
-          className="flex items-center gap-2 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition"
-        >
-          <Plus size={14} />
-          Add Client
-        </button>
+        {canAddClient && (
+          <button
+            onClick={() => setAddClientOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition"
+          >
+            <Plus size={14} />
+            Add Client
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -123,12 +126,14 @@ export default function ClientsGrid({ clients: initial, projects: initialProject
 
               {/* Actions */}
               <div className="flex items-center gap-2 pt-1 mt-auto border-t border-border">
-                <button
-                  onClick={() => setAddProjectFor(client)}
-                  className="flex items-center gap-1 text-[12px] text-muted hover:text-accent transition-colors"
-                >
-                  <Plus size={12} /> Project
-                </button>
+                {canAddClient && (
+                  <button
+                    onClick={() => setAddProjectFor(client)}
+                    className="flex items-center gap-1 text-[12px] text-muted hover:text-accent transition-colors"
+                  >
+                    <Plus size={12} /> Project
+                  </button>
+                )}
                 <Link
                   href={`/admin/clients/${client.id}`}
                   className="ml-auto text-[12px] text-accent hover:underline"

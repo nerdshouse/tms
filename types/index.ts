@@ -19,6 +19,10 @@ export interface Client {
   parent_client_id?: string;
   /** team_member ID assigned as Point of Contact for this client */
   poc_id?: string;
+  /** Set only for team members who sign in — their role from team_members collection */
+  team_role?: TeamRole;
+  /** Set only for team members who sign in — their team_members document ID */
+  team_member_id?: string;
   status: ClientStatus;
   created_at: string;
 }

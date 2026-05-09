@@ -60,6 +60,8 @@ export function docToClient(snap: firestore.DocumentSnapshot): Client {
     is_contact:        d.is_contact ?? false,
     parent_client_id:  d.parent_client_id ?? undefined,
     poc_id:            d.poc_id ?? undefined,
+    team_role:         d.team_role ?? undefined,
+    team_member_id:    d.team_member_id ?? undefined,
     status:            d.status ?? "active",
     created_at:        tsToIso(d.created_at),
   };

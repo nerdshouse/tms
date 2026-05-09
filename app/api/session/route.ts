@@ -73,15 +73,18 @@ export async function POST(request: Request) {
       }
 
       if (isTeamMember) {
-        const tm = teamSnap.docs[0].data();
+        const tmDoc = teamSnap.docs[0];
+        const tm    = tmDoc.data();
         await clientRef.set({
-          name:       tm.name ?? googleName ?? email.split("@")[0],
+          name:           tm.name ?? googleName ?? email.split("@")[0],
           email,
-          company:    "Nerdshouse Technologies LLP",
-          is_admin:   true,
-          status:     "active",
-          avatar_url: picture ?? null,
-          created_at: now,
+          company:        "Nerdshouse Technologies LLP",
+          is_admin:       true,
+          team_role:      tm.role,
+          team_member_id: tmDoc.id,
+          status:         "active",
+          avatar_url:     picture ?? null,
+          created_at:     now,
         });
         await adminAuth.setCustomUserClaims(uid, { is_admin: true });
 
@@ -124,7 +127,21 @@ export async function POST(request: Request) {
     }
   }
 
-  // ── 3. Determine role for the role hint cookie ────────────────────────────
+  // ── 3. Backfill team_role / team_member_id for returning team members ────
+  //    Existing docs created before these fields were added won't have them.
+  if (clientSnap.exists) {
+    const d = clientSnap.data()!;
+    if (d.is_admin === true && !d.team_role && !isEnvAdmin(email)) {
+      // Might be a team member whose doc predates team_role field
+      const tmSnap = await adminDb.collection("team_members").where("email", "==", email).limit(1).get();
+      if (!tmSnap.empty) {
+        const tmDoc = tmSnap.docs[0];
+        await clientRef.update({ team_role: tmDoc.data().role, team_member_id: tmDoc.id });
+      }
+    }
+  }
+
+  // ── 4. Determine role for the role hint cookie ────────────────────────────
   const freshData = clientSnap.exists ? clientSnap.data() : (await clientRef.get()).data();
   const isAdmin   = freshData?.is_admin === true;
 

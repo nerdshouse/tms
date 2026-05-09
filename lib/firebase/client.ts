@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -23,7 +23,7 @@ export const auth        = app ? getAuth(app)      : (null as any);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const db          = app ? getFirestore(app) : (null as any);
 export const googleProvider = new GoogleAuthProvider();
-export { signInWithRedirect, getRedirectResult, signOut };
+export { signInWithPopup, signOut };
 
 /** Alias kept for callers that used getDb() after the proxy migration. */
 export function getDb() { return db; }
