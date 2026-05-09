@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, Plus, Trash2, Mail, UserCheck, Loader2 } from "lucide-react";
 import Sheet from "@/components/ui/Sheet";
 import AddProjectSheet from "@/components/admin/AddProjectSheet";
@@ -49,6 +50,7 @@ export default function ClientDetail({
   teamMembers,
   contacts: initialContacts,
 }: Props) {
+  const router = useRouter();
   const [activeTab, setActiveTab]   = useState<TabId>("overview");
   const [addProjectOpen, setAddProjectOpen] = useState(false);
 
@@ -356,13 +358,12 @@ export default function ClientDetail({
                 {tickets.map((t, i) => (
                   <tr
                     key={t.id}
-                    className={`border-b border-border last:border-0 hover:bg-gray-50/50 transition-colors ${i % 2 !== 0 ? "bg-gray-50/20" : ""}`}
+                    onClick={() => router.push(`/tickets/${t.id}`)}
+                    className={`border-b border-border last:border-0 hover:bg-gray-50/50 transition-colors cursor-pointer ${i % 2 !== 0 ? "bg-gray-50/20" : ""}`}
                   >
                     <td className="px-4 py-3 font-mono text-[11px] text-muted">#{t.id.slice(0, 8)}</td>
                     <td className="px-4 py-3">
-                      <Link href={`/tickets/${t.id}`} className="font-medium text-foreground hover:text-accent transition-colors line-clamp-1">
-                        {t.title}
-                      </Link>
+                      <span className="font-medium text-foreground line-clamp-1">{t.title}</span>
                     </td>
                     <td className="px-4 py-3">
                       {t.projects ? (

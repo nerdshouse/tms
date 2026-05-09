@@ -202,12 +202,7 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
                     #{ticket.id.slice(0, 8)}
                   </td>
                   <td className="px-4 py-3">
-                    <Link
-                      href={`/tickets/${ticket.id}`}
-                      className="font-medium text-foreground hover:text-accent transition-colors line-clamp-1"
-                    >
-                      {ticket.title}
-                    </Link>
+                    <span className="font-medium text-foreground line-clamp-1">{ticket.title}</span>
                   </td>
                   {isAdmin && (
                     <td className="px-4 py-3 text-muted">{ticket.clients?.name ?? "—"}</td>
