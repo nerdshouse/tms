@@ -154,6 +154,21 @@ export async function POST(request: Request) {
       const d = clientSnap.data()!;
       console.log(`[session] Returning user uid=${uid} is_admin=${d.is_admin} team_role=${d.team_role ?? "none"}`);
 
+      // Backfill is_contact if this user was added as a contact after their first sign-in
+      if (d.is_admin === false && !d.is_contact && !d.parent_client_id) {
+        const contactsSnap = await adminDb
+          .collectionGroup("contacts")
+          .where("email", "==", emailLower)
+          .limit(1)
+          .get();
+        if (!contactsSnap.empty) {
+          const parentClientId = contactsSnap.docs[0].ref.parent.parent!.id;
+          await clientRef.update({ is_contact: true, parent_client_id: parentClientId });
+          await contactsSnap.docs[0].ref.update({ status: "active" });
+          console.log(`[session] Backfilled is_contact for uid=${uid} parentClientId=${parentClientId}`);
+        }
+      }
+
       if (d.is_admin === true && !d.team_role && !isEnvAdmin(email)) {
         console.log(`[session] Backfilling team_role for uid=${uid}`);
         const [tmSnap1, tmSnap2] = await Promise.all([

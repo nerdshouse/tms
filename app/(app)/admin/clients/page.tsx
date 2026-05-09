@@ -26,7 +26,7 @@ export default async function AdminClientsPage() {
     if (cid) ticketCounts[cid] = (ticketCounts[cid] ?? 0) + 1;
   });
 
-  const clients: Client[] = clientsSnap.docs.map(docToClient).filter((c) => !c.is_contact);
+  const clients: Client[] = clientsSnap.docs.map(docToClient).filter((c) => !c.is_contact && !c.parent_client_id);
   const projects: Project[] = projectsSnap.docs.map(docToProject);
 
   // For developer roles: client IDs explicitly assigned OR with assigned tickets

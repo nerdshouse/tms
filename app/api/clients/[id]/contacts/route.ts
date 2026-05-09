@@ -62,6 +62,21 @@ export async function POST(
     .collection("contacts")
     .add({ name: name.trim(), email: normalizedEmail, status: "pending", created_at: now });
 
+  // If this person already has a clients/{uid} doc (previously signed in),
+  // mark it as a contact so it is hidden from the admin clients grid.
+  const existingSnap = await adminDb
+    .collection("clients")
+    .where("email", "==", normalizedEmail)
+    .where("is_admin", "==", false)
+    .limit(1)
+    .get();
+  if (!existingSnap.empty) {
+    await existingSnap.docs[0].ref.update({
+      is_contact:       true,
+      parent_client_id: params.id,
+    });
+  }
+
   sendContactInviteEmail({
     name:    name.trim(),
     email:   normalizedEmail,
