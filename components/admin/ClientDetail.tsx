@@ -41,6 +41,7 @@ interface Props {
   tickets: Ticket[];
   teamMembers: TeamMember[];
   contacts: ClientContact[];
+  isFullAdmin?: boolean;
 }
 
 export default function ClientDetail({
@@ -49,6 +50,7 @@ export default function ClientDetail({
   tickets,
   teamMembers,
   contacts: initialContacts,
+  isFullAdmin = true,
 }: Props) {
   const router = useRouter();
   const [activeTab, setActiveTab]   = useState<TabId>("overview");
@@ -237,12 +239,14 @@ export default function ClientDetail({
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
                 <h2 className="text-[13px] font-semibold text-foreground">Projects ({projects.length})</h2>
-                <button
-                  onClick={() => setAddProjectOpen(true)}
-                  className="flex items-center gap-1 text-[12px] text-muted hover:text-accent transition-colors"
-                >
-                  <Plus size={12} /> Add
-                </button>
+                {isFullAdmin && (
+                  <button
+                    onClick={() => setAddProjectOpen(true)}
+                    className="flex items-center gap-1 text-[12px] text-muted hover:text-accent transition-colors"
+                  >
+                    <Plus size={12} /> Add
+                  </button>
+                )}
               </div>
               {projects.length === 0 ? (
                 <p className="text-[13px] text-muted text-center py-8">No projects yet.</p>
@@ -320,17 +324,21 @@ export default function ClientDetail({
                   </div>
                 </div>
               )}
-              <select
-                value={pocId}
-                onChange={(e) => savePoc(e.target.value)}
-                disabled={savingPoc}
-                className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition disabled:opacity-60"
-              >
-                <option value="">— No POC —</option>
-                {teamMembers.filter((m) => m.status === "active").map((m) => (
-                  <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
-                ))}
-              </select>
+              {isFullAdmin ? (
+                <select
+                  value={pocId}
+                  onChange={(e) => savePoc(e.target.value)}
+                  disabled={savingPoc}
+                  className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition disabled:opacity-60"
+                >
+                  <option value="">— No POC —</option>
+                  {teamMembers.filter((m) => m.status === "active").map((m) => (
+                    <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
+                  ))}
+                </select>
+              ) : (
+                !poc && <p className="text-[12px] text-muted">No POC assigned</p>
+              )}
             </div>
           </div>
         </div>
@@ -390,12 +398,14 @@ export default function ClientDetail({
         <div>
           <div className="flex items-center justify-between mb-4">
             <p className="text-[13px] text-muted">{projects.length} project{projects.length !== 1 ? "s" : ""}</p>
-            <button
-              onClick={() => setAddProjectOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition"
-            >
-              <Plus size={14} /> Add Project
-            </button>
+            {isFullAdmin && (
+              <button
+                onClick={() => setAddProjectOpen(true)}
+                className="flex items-center gap-2 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition"
+              >
+                <Plus size={14} /> Add Project
+              </button>
+            )}
           </div>
           {projects.length === 0 ? (
             <div className="bg-card border border-border rounded-xl p-12 text-center">
@@ -422,13 +432,15 @@ export default function ClientDetail({
                           {p.description && <p className="text-[11px] text-muted">{p.description}</p>}
                         </div>
                       </div>
-                      <button
-                        onClick={() => removeProject(p.id)}
-                        disabled={removingProjectId === p.id}
-                        className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-500 transition-all disabled:opacity-40"
-                      >
-                        {removingProjectId === p.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                      </button>
+                      {isFullAdmin && (
+                        <button
+                          onClick={() => removeProject(p.id)}
+                          disabled={removingProjectId === p.id}
+                          className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-500 transition-all disabled:opacity-40"
+                        >
+                          {removingProjectId === p.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                        </button>
+                      )}
                     </div>
 
                     {/* Status grid */}
@@ -467,12 +479,14 @@ export default function ClientDetail({
         <div>
           <div className="flex items-center justify-between mb-4">
             <p className="text-[13px] text-muted">{contacts.length + 1} member{contacts.length !== 0 ? "s" : ""}</p>
-            <button
-              onClick={() => { setShowContactForm((v) => !v); setContactError(""); }}
-              className="flex items-center gap-2 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition"
-            >
-              <Plus size={14} /> Add Member
-            </button>
+            {isFullAdmin && (
+              <button
+                onClick={() => { setShowContactForm((v) => !v); setContactError(""); }}
+                className="flex items-center gap-2 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition"
+              >
+                <Plus size={14} /> Add Member
+              </button>
+            )}
           </div>
 
           {/* Inline add form */}
@@ -585,13 +599,15 @@ export default function ClientDetail({
                       }`}>{c.status}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => removeContact(c.id)}
-                        disabled={removingContactId === c.id}
-                        className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-500 transition-all disabled:opacity-40"
-                      >
-                        {removingContactId === c.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                      </button>
+                      {isFullAdmin && (
+                        <button
+                          onClick={() => removeContact(c.id)}
+                          disabled={removingContactId === c.id}
+                          className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-500 transition-all disabled:opacity-40"
+                        >
+                          {removingContactId === c.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

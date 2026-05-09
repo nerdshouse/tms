@@ -10,7 +10,7 @@ import AddTeamMemberSheet from "@/components/admin/AddTeamMemberSheet";
 import { useRealtime } from "@/lib/use-realtime";
 import type { TeamMember, TeamRole } from "@/types";
 
-interface Props { members: TeamMember[]; canInvite?: boolean }
+interface Props { members: TeamMember[]; canInvite?: boolean; canRemove?: boolean }
 
 const ROLE_COLORS: Record<TeamRole, string> = {
   Admin:     "#4a4fe0",
@@ -19,7 +19,7 @@ const ROLE_COLORS: Record<TeamRole, string> = {
   QA:        "#ea580c",
 };
 
-export default function TeamPage({ members: initial, canInvite = false }: Props) {
+export default function TeamPage({ members: initial, canInvite = false, canRemove = false }: Props) {
   const [members, setMembers]   = useState(initial);
   const [addOpen, setAddOpen]   = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -109,13 +109,15 @@ export default function TeamPage({ members: initial, canInvite = false }: Props)
                     }`}>{m.status}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => removeMember(m.id)}
-                      disabled={removingId === m.id}
-                      className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-500 transition-all disabled:opacity-40"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    {canRemove && (
+                      <button
+                        onClick={() => removeMember(m.id)}
+                        disabled={removingId === m.id}
+                        className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-500 transition-all disabled:opacity-40"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

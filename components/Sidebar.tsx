@@ -5,9 +5,16 @@ import { usePathname, useRouter } from "next/navigation";
 import { BarChart2, LayoutDashboard, LayoutList, Plus, LogOut, Users, UserCircle2, UsersRound, FolderOpen, ScrollText } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
-import type { Client, Project, TeamMember } from "@/types";
+import type { Client, Project, TeamMember, TeamRole } from "@/types";
 import { StatusIcon, statusMeta } from "@/components/ui/StatusIcon";
 import type { Status } from "@/types";
+
+const ROLE_BADGE: Record<TeamRole, string> = {
+  Admin:     "bg-accent/10 text-accent",
+  Developer: "bg-green-50 text-green-700",
+  Designer:  "bg-pink-50 text-pink-700",
+  QA:        "bg-purple-50 text-purple-700",
+};
 
 interface SidebarProps {
   user: Client;
@@ -216,6 +223,11 @@ export default function Sidebar({ user, projects, poc }: SidebarProps) {
           <div className="flex-1 min-w-0">
             <p className="text-[12px] font-medium text-foreground truncate">{user.name}</p>
             <p className="text-[11px] text-muted truncate">{user.company || user.email}</p>
+            {user.team_role && user.team_role !== "Admin" && (
+              <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded ${ROLE_BADGE[user.team_role]}`}>
+                {user.team_role}
+              </span>
+            )}
           </div>
           <button onClick={handleSignOut} className="text-muted hover:text-foreground transition-colors" title="Sign out">
             <LogOut size={14} />

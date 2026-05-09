@@ -6,6 +6,7 @@ import admin from "firebase-admin";
 export async function POST(request: Request) {
   const me = await getSessionClient();
   if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (me.team_role && me.team_role !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { name, client_id, color, description } = await request.json();
   if (!name || !client_id) return NextResponse.json({ error: "Name and client_id required" }, { status: 400 });

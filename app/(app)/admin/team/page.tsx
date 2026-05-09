@@ -31,5 +31,5 @@ export default async function AdminTeamPage() {
 
   const isFullAdmin = !me.team_role || me.team_role === "Admin";
 
-  return <TeamPage members={members} canInvite={isFullAdmin} />;
+  return <TeamPage members={members} canInvite={isFullAdmin} canRemove={isFullAdmin} />;
 }

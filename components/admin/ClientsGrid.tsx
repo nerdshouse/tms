@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Building2, Ticket } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Plus, Building2, Ticket, Lock, X } from "lucide-react";
 import Sheet from "@/components/ui/Sheet";
 import AddClientSheet from "@/components/admin/AddClientSheet";
 import AddProjectSheet from "@/components/admin/AddProjectSheet";
@@ -14,16 +15,29 @@ interface Props {
   projects: Project[];
   ticketCounts: Record<string, number>;
   canAddClient?: boolean;
+  /** When defined (developer role), only these client IDs are accessible */
+  assignedClientIds?: Set<string>;
 }
 
-export default function ClientsGrid({ clients: initial, projects: initialProjects, ticketCounts: initialCounts, canAddClient = false }: Props) {
+export default function ClientsGrid({
+  clients: initial,
+  projects: initialProjects,
+  ticketCounts: initialCounts,
+  canAddClient = false,
+  assignedClientIds,
+}: Props) {
   const [clients, setClients]             = useState(initial);
   const [projects, setProjects]           = useState(initialProjects);
   const [ticketCounts]                    = useState(initialCounts);
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [addProjectFor, setAddProjectFor] = useState<Client | null>(null);
+  const [deniedBanner, setDeniedBanner]   = useState(false);
 
-  // ── Realtime: clients collection ─────────────────────────────────────────
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("denied") === "1") setDeniedBanner(true);
+  }, [searchParams]);
+
   useRealtime<Client>({
     table: "clients",
     onInsert: (row) => setClients((prev) => prev.some((c) => c.id === row.id) ? prev : [row, ...prev]),
@@ -31,7 +45,6 @@ export default function ClientsGrid({ clients: initial, projects: initialProject
     onDelete: (row) => setClients((prev) => prev.filter((c) => c.id !== row.id)),
   });
 
-  // ── Realtime: projects (all, admin view) ──────────────────────────────────
   useRealtime<Project>({
     table: "projects",
     onInsert: (row) => setProjects((prev) => prev.some((p) => p.id === row.id) ? prev : [...prev, row]),
@@ -45,7 +58,6 @@ export default function ClientsGrid({ clients: initial, projects: initialProject
   }
 
   function handleProjectAdded(project: Project) {
-    // Update state immediately; onSnapshot deduplicates if it also fires
     setProjects((prev) => prev.some((p) => p.id === project.id) ? prev : [...prev, project]);
     setAddProjectFor(null);
   }
@@ -71,12 +83,23 @@ export default function ClientsGrid({ clients: initial, projects: initialProject
         )}
       </div>
 
+      {deniedBanner && (
+        <div className="flex items-center justify-between mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-[13px] text-amber-800">
+          <span>You don&apos;t have access to that client. Only assigned clients are clickable.</span>
+          <button onClick={() => setDeniedBanner(false)} className="ml-3 text-amber-600 hover:text-amber-900">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-4">
         {clients.map((client) => {
           const clientProjects = projectsForClient(client.id);
-          const count = ticketCounts[client.id] ?? 0;
-          return (
-            <div key={client.id} className="bg-card border border-border rounded-xl p-5 flex flex-col gap-3">
+          const count   = ticketCounts[client.id] ?? 0;
+          const locked  = assignedClientIds !== undefined && !assignedClientIds.has(client.id);
+
+          const cardInner = (
+            <>
               {/* Header */}
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-3">
@@ -90,13 +113,16 @@ export default function ClientsGrid({ clients: initial, projects: initialProject
                     <p className="text-[11px] text-muted">{client.company}</p>
                   </div>
                 </div>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                  client.status === "active"
-                    ? "bg-green-50 text-green-700 border-green-100"
-                    : "bg-gray-100 text-gray-500 border-gray-200"
-                }`}>
-                  {client.status}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {locked && <Lock size={11} className="text-muted/60" />}
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                    client.status === "active"
+                      ? "bg-green-50 text-green-700 border-green-100"
+                      : "bg-gray-100 text-gray-500 border-gray-200"
+                  }`}>
+                    {client.status}
+                  </span>
+                </div>
               </div>
 
               {/* Stats */}
@@ -125,23 +151,37 @@ export default function ClientsGrid({ clients: initial, projects: initialProject
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-2 pt-1 mt-auto border-t border-border">
-                {canAddClient && (
-                  <button
-                    onClick={() => setAddProjectFor(client)}
-                    className="flex items-center gap-1 text-[12px] text-muted hover:text-accent transition-colors"
-                  >
-                    <Plus size={12} /> Project
-                  </button>
-                )}
-                <Link
-                  href={`/admin/clients/${client.id}`}
-                  className="ml-auto text-[12px] text-accent hover:underline"
-                >
-                  View →
-                </Link>
-              </div>
+              {!locked && (
+                <div className="flex items-center gap-2 pt-1 mt-auto border-t border-border">
+                  {canAddClient && (
+                    <button
+                      onClick={(e) => { e.preventDefault(); setAddProjectFor(client); }}
+                      className="flex items-center gap-1 text-[12px] text-muted hover:text-accent transition-colors"
+                    >
+                      <Plus size={12} /> Project
+                    </button>
+                  )}
+                  <span className="ml-auto text-[12px] text-accent">View →</span>
+                </div>
+              )}
+            </>
+          );
+
+          return locked ? (
+            <div
+              key={client.id}
+              className="bg-card border border-border rounded-xl p-5 flex flex-col gap-3 opacity-50 cursor-not-allowed pointer-events-none"
+            >
+              {cardInner}
             </div>
+          ) : (
+            <Link
+              key={client.id}
+              href={`/admin/clients/${client.id}`}
+              className="bg-card border border-border rounded-xl p-5 flex flex-col gap-3 hover:border-accent/30 hover:shadow-sm transition-all"
+            >
+              {cardInner}
+            </Link>
           );
         })}
       </div>

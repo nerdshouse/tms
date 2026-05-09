@@ -9,14 +9,21 @@ export async function PATCH(
   const me = await getSessionClient();
   if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  const isFullAdmin = !me.team_role || me.team_role === "Admin";
   const body = await request.json() as Record<string, unknown>;
   const allowed: Record<string, unknown> = {};
 
-  // Only allow patching specific safe fields
-  if ("poc_id"  in body) allowed.poc_id  = body.poc_id  ?? null;
-  if ("status"  in body) allowed.status  = body.status;
-  if ("company" in body) allowed.company = body.company;
-  if ("name"    in body) allowed.name    = body.name;
+  // poc_id: all admins can update
+  if ("poc_id" in body) allowed.poc_id = body.poc_id ?? null;
+
+  // profile fields: full admins only
+  if (isFullAdmin) {
+    if ("status"  in body) allowed.status  = body.status;
+    if ("company" in body) allowed.company = body.company;
+    if ("name"    in body) allowed.name    = body.name;
+  } else if (["status", "company", "name"].some((k) => k in body)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   if (Object.keys(allowed).length === 0) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
