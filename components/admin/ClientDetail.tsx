@@ -3,14 +3,14 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Plus, Trash2, Mail, UserCheck, Users, X, Loader2, Pencil, AlertTriangle, Clock } from "lucide-react";
+import { ChevronLeft, Plus, Trash2, Mail, UserCheck, Users, X, Loader2, Pencil, AlertTriangle, Clock, RefreshCw } from "lucide-react";
 import Sheet from "@/components/ui/Sheet";
 import AddProjectSheet from "@/components/admin/AddProjectSheet";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
 import { formatIST } from "@/lib/utils";
 import { useRealtime } from "@/lib/use-realtime";
-import type { Client, Project, Ticket, TeamMember, ClientContact, Status, Priority, ProjectHourEntry } from "@/types";
+import type { Client, Project, Ticket, TeamMember, ClientContact, Status, Priority, ProjectHourEntry, TogglProject } from "@/types";
 
 type TabId = "overview" | "tickets" | "projects" | "team" | "analytics";
 
@@ -78,6 +78,13 @@ export default function ClientDetail({
   const [editingHour, setEditingHour]     = useState<ProjectHourEntry | null>(null);
   const [savingHour, setSavingHour]       = useState(false);
   const [deletingHourId, setDeletingHourId] = useState<string | null>(null);
+
+  // Toggl sync
+  const [togglProjects, setTogglProjects]       = useState<TogglProject[]>([]);
+  const [loadingToggl, setLoadingToggl]         = useState(false);
+  const [syncing, setSyncing]                   = useState(false);
+  const [syncResult, setSyncResult]             = useState<string | null>(null);
+  const [togglConfigured, setTogglConfigured]   = useState<boolean | null>(null);
 
   // POC
   const [pocId, setPocId]     = useState(client.poc_id ?? "");
@@ -174,9 +181,33 @@ export default function ClientDetail({
     setHoursProject(project);
     setHourForm({ description: "", hours: "", date: new Date().toISOString().slice(0, 10) });
     setEditingHour(null);
+    setSyncResult(null);
     setLoadingHours(true);
-    const res = await fetch(`/api/projects/${project.id}/hours`);
-    if (res.ok) setHourEntries(await res.json());
+
+    // Load hours + check Toggl config in parallel
+    const [hoursRes] = await Promise.all([
+      fetch(`/api/projects/${project.id}/hours`),
+      (async () => {
+        if (togglConfigured === null) {
+          setLoadingToggl(true);
+          const settingsRes = await fetch("/api/toggl/settings");
+          if (settingsRes.ok) {
+            const s = await settingsRes.json();
+            const configured = !!(s.api_token && s.workspace_id);
+            setTogglConfigured(configured);
+            if (configured && togglProjects.length === 0) {
+              const projRes = await fetch("/api/toggl/projects");
+              if (projRes.ok) setTogglProjects(await projRes.json());
+            }
+          } else {
+            setTogglConfigured(false);
+          }
+          setLoadingToggl(false);
+        }
+      })(),
+    ]);
+
+    if (hoursRes.ok) setHourEntries(await hoursRes.json());
     setLoadingHours(false);
   }
 
@@ -225,6 +256,46 @@ export default function ClientDetail({
         : p));
     }
     setDeletingHourId(null);
+  }
+
+  async function saveTogglMapping(projectId: string, togglProjectId: number | null) {
+    await fetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ toggl_project_id: togglProjectId }),
+    });
+    setProjects((prev) =>
+      prev.map((p) => p.id === projectId ? { ...p, toggl_project_id: togglProjectId } : p)
+    );
+    if (hoursProject?.id === projectId) {
+      setHoursProject((prev) => prev ? { ...prev, toggl_project_id: togglProjectId } : prev);
+    }
+  }
+
+  async function syncToggl() {
+    if (!hoursProject) return;
+    setSyncing(true);
+    setSyncResult(null);
+    const res = await fetch(`/api/toggl/sync/${hoursProject.id}`, { method: "POST" });
+    const data = await res.json();
+    if (res.ok) {
+      setSyncResult(`Synced ${data.synced} new entr${data.synced !== 1 ? "ies" : "y"}${data.skipped > 0 ? ` (${data.skipped} already imported)` : ""}.`);
+      if (data.synced > 0) {
+        // Refresh entries list
+        const hoursRes = await fetch(`/api/projects/${hoursProject.id}/hours`);
+        if (hoursRes.ok) {
+          const entries: ProjectHourEntry[] = await hoursRes.json();
+          setHourEntries(entries);
+          const newTotal = parseFloat(entries.reduce((a, e) => a + e.hours, 0).toFixed(2));
+          setProjects((prev) =>
+            prev.map((p) => p.id === hoursProject.id ? { ...p, total_hours: newTotal } : p)
+          );
+        }
+      }
+    } else {
+      setSyncResult(`Error: ${data.error ?? "Sync failed"}`);
+    }
+    setSyncing(false);
   }
 
   function handleProjectAdded(project: Project) {
@@ -956,6 +1027,48 @@ export default function ClientDetail({
                 )}
               </div>
             </form>
+
+            {/* Toggl sync */}
+            {togglConfigured === true && (
+              <div className="bg-gray-50/60 border border-border rounded-xl p-4 space-y-3">
+                <p className="text-[12px] font-semibold text-foreground flex items-center gap-1.5">
+                  <RefreshCw size={12} className="text-muted" /> Toggl Sync
+                </p>
+                <div>
+                  <label className="block text-[11px] font-medium text-muted mb-1">Toggl Project</label>
+                  <select
+                    value={hoursProject.toggl_project_id ?? ""}
+                    onChange={(e) => saveTogglMapping(hoursProject.id, e.target.value ? Number(e.target.value) : null)}
+                    disabled={loadingToggl}
+                    className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition disabled:opacity-60"
+                  >
+                    <option value="">— Not mapped —</option>
+                    {togglProjects.map((tp) => (
+                      <option key={tp.id} value={tp.id}>{tp.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={syncToggl}
+                  disabled={syncing || !hoursProject.toggl_project_id}
+                  className="flex items-center gap-2 px-3.5 py-2 text-[12px] font-medium text-muted border border-border rounded-lg hover:bg-gray-100 hover:text-foreground transition disabled:opacity-50"
+                >
+                  {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                  {syncing ? "Syncing…" : "Sync from Toggl"}
+                </button>
+                {syncResult && (
+                  <p className={`text-[12px] ${syncResult.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>
+                    {syncResult}
+                  </p>
+                )}
+              </div>
+            )}
+            {togglConfigured === false && (
+              <p className="text-[11px] text-muted/70 italic">
+                Configure Toggl in <a href="/admin/settings" className="underline text-accent">Settings</a> to enable sync.
+              </p>
+            )}
 
             {/* Total */}
             <div className="flex items-center gap-2 px-1">

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart2, LayoutDashboard, LayoutList, Plus, LogOut, Users, UserCircle2, UsersRound, FolderOpen, ScrollText } from "lucide-react";
+import { BarChart2, LayoutDashboard, LayoutList, Plus, LogOut, Users, UserCircle2, UsersRound, FolderOpen, ScrollText, Settings } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import type { Client, Project, TeamMember, TeamRole } from "@/types";
@@ -82,6 +82,7 @@ export default function Sidebar({ user, projects, poc }: SidebarProps) {
               {navLink("/admin/clients", UserCircle2, "Clients")}
               {navLink("/admin/team", Users, "Team Members")}
               {navLink("/analytics", BarChart2, "Analytics")}
+              {navLink("/admin/settings", Settings, "Settings")}
             </div>
 
             <Link

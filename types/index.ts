@@ -43,9 +43,17 @@ export interface Project {
   color: string;
   description?: string;
   total_hours?: number;
+  toggl_project_id?: number | null;
   created_at: string;
   clients?: Pick<Client, "name" | "company">;
   ticket_count?: number;
+}
+
+export interface TogglProject {
+  id: number;
+  name: string;
+  client_id: number | null;
+  active: boolean;
 }
 
 export interface ProjectHourEntry {
@@ -55,6 +63,7 @@ export interface ProjectHourEntry {
   hours: number;
   date: string;
   added_by_name: string;
+  toggl_entry_id?: number | null;
   created_at: string;
 }
 

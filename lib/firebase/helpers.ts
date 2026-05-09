@@ -113,14 +113,15 @@ export function docToUpdate(snap: firestore.DocumentSnapshot): TicketUpdate {
 export function docToProject(snap: firestore.DocumentSnapshot): Project {
   const d = snap.data()!;
   return {
-    id:          snap.id,
-    name:        d.name,
-    client_id:   d.client_id,
-    color:        d.color ?? "#4a4fe0",
-    description:  d.description ?? undefined,
-    total_hours:  typeof d.total_hours === "number" ? d.total_hours : 0,
-    created_at:   tsToIso(d.created_at),
-    clients:     d.client_name ? { name: d.client_name, company: d.client_company ?? "" } : undefined,
+    id:               snap.id,
+    name:             d.name,
+    client_id:        d.client_id,
+    color:            d.color ?? "#4a4fe0",
+    description:      d.description ?? undefined,
+    total_hours:      typeof d.total_hours === "number" ? d.total_hours : 0,
+    toggl_project_id: d.toggl_project_id ?? null,
+    created_at:       tsToIso(d.created_at),
+    clients:          d.client_name ? { name: d.client_name, company: d.client_company ?? "" } : undefined,
   };
 }
 
@@ -152,13 +153,14 @@ export function docToContact(snap: firestore.DocumentSnapshot): ClientContact {
 export function docToHourEntry(snap: firestore.DocumentSnapshot): ProjectHourEntry {
   const d = snap.data()!;
   return {
-    id:            snap.id,
-    project_id:    d.project_id,
-    description:   d.description ?? "",
-    hours:         typeof d.hours === "number" ? d.hours : 0,
-    date:          d.date ?? "",
-    added_by_name: d.added_by_name ?? "",
-    created_at:    tsToIso(d.created_at),
+    id:              snap.id,
+    project_id:      d.project_id,
+    description:     d.description ?? "",
+    hours:           typeof d.hours === "number" ? d.hours : 0,
+    date:            d.date ?? "",
+    added_by_name:   d.added_by_name ?? "",
+    toggl_entry_id:  d.toggl_entry_id ?? null,
+    created_at:      tsToIso(d.created_at),
   };
 }
 

@@ -2,6 +2,23 @@ import { NextResponse } from "next/server";
 import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
 import { logEvent } from "@/lib/log";
 
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const me = await getSessionClient();
+  if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const body = await request.json() as { toggl_project_id?: number | null };
+  const update: Record<string, unknown> = {};
+  if ("toggl_project_id" in body) update.toggl_project_id = body.toggl_project_id ?? null;
+
+  if (Object.keys(update).length > 0) {
+    await adminDb.collection("projects").doc(params.id).update(update);
+  }
+  return NextResponse.json({ ok: true });
+}
+
 export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } }
