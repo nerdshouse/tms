@@ -17,7 +17,8 @@
     "react-dom": "^18",
     "react-dropzone": "^15.0.0",
     "recharts": "^3.8.1",
-    "resend": "^6.12.3"
+    "resend": "^6.12.3",
+    "vercel": "^53.2.0"
   },
   "devDependencies": {
     "@types/node": "^20",

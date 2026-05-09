@@ -17,11 +17,16 @@ export async function GET() {
   const client = await getSessionClient();
   if (!client) return NextResponse.json([], { status: 401 });
 
-  const snap = await adminDb
-    .collection("projects")
-    .where("client_id", "==", client.id)
-    .orderBy("created_at")
-    .get();
+  try {
+    const snap = await adminDb
+      .collection("projects")
+      .where("client_id", "==", client.id)
+      .orderBy("created_at")
+      .get();
 
-  return NextResponse.json(snap.docs.map(docToProject));
+    return NextResponse.json(snap.docs.map(docToProject));
+  } catch (err) {
+    console.error("[/api/me/projects] Firestore error:", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }

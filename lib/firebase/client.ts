@@ -1,6 +1,6 @@
-import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,36 +11,19 @@ const firebaseConfig = {
   appId:             process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-function getClientApp(): FirebaseApp {
-  return getApps().length ? getApp() : initializeApp(firebaseConfig);
-}
+// Only initialize on the client — this file should never be imported server-side.
+// All components/hooks that import from here must be "use client" or loaded via
+// next/dynamic with ssr:false.
+const app = typeof window !== "undefined"
+  ? (getApps().length ? getApp() : initializeApp(firebaseConfig))
+  : null;
 
-let _auth: Auth | undefined;
-let _db: Firestore | undefined;
-
-/**
- * Lazy proxy — getAuth / getFirestore are only called on first property access,
- * not at module load time. This prevents build-time crashes when
- * NEXT_PUBLIC_FIREBASE_* env vars are absent (e.g. Vercel build without vars set).
- */
-function lazyProxy<T extends object>(getInstance: () => T): T {
-  return new Proxy({} as T, {
-    get(_target, prop: string | symbol) {
-      const instance = getInstance();
-      const value = (instance as Record<string | symbol, unknown>)[prop];
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-      return typeof value === "function" ? (value as Function).bind(instance) : value;
-    },
-  });
-}
-
-export const auth = lazyProxy<Auth>(
-  () => (_auth ??= getAuth(getClientApp()))
-);
-
-export const db = lazyProxy<Firestore>(
-  () => (_db ??= getFirestore(getClientApp()))
-);
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const auth        = app ? getAuth(app)      : (null as any);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const db          = app ? getFirestore(app) : (null as any);
 export const googleProvider = new GoogleAuthProvider();
-export { signInWithPopup };
+export { signInWithRedirect, getRedirectResult, signOut };
+
+/** Alias kept for callers that used getDb() after the proxy migration. */
+export function getDb() { return db; }

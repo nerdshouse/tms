@@ -1,46 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { signOut } from "firebase/auth";
-import { auth, googleProvider, signInWithPopup } from "@/lib/firebase/client";
+import { auth, googleProvider, signInWithRedirect, getRedirectResult, signOut } from "@/lib/firebase/client";
 
 export default function LoginForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
 
+  // On mount: check if we just came back from a Google redirect
+  useEffect(() => {
+    setLoading(true);
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!result) { setLoading(false); return; } // No redirect in progress
+
+        const idToken = await result.user.getIdToken();
+        const res = await fetch("/api/session", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ idToken }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          await signOut(auth);
+          setError(data.message ?? "Access denied. Contact Nerdshouse to get access.");
+          setLoading(false);
+          return;
+        }
+
+        // Force token refresh so custom claims (is_admin) are immediately
+        // available to the client-side Firestore SDK before any onSnapshot
+        // subscriptions are set up on the next page.
+        await result.user.getIdToken(true);
+        router.replace("/");
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
+        setLoading(false);
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function handleGoogle() {
     setLoading(true);
     setError("");
-
     try {
-      const result  = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
-
-      const res = await fetch("/api/session", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ idToken }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        await signOut(auth);
-        setError(data.message ?? "Access denied. Contact Nerdshouse to get access.");
-        return;
-      }
-
-      // Force token refresh so custom claims (is_admin) are immediately
-      // available to the client-side Firestore SDK before any onSnapshot
-      // subscriptions are set up on the next page.
-      await result.user.getIdToken(true);
-
-      router.replace("/");
+      // signInWithRedirect navigates away — no popup, no COOP issues
+      await signInWithRedirect(auth, googleProvider);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
-    } finally {
       setLoading(false);
     }
   }
