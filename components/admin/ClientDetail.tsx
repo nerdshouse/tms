@@ -279,7 +279,11 @@ export default function ClientDetail({
     const res = await fetch(`/api/toggl/sync/${hoursProject.id}`, { method: "POST" });
     const data = await res.json();
     if (res.ok) {
-      setSyncResult(`Synced ${data.synced} new entr${data.synced !== 1 ? "ies" : "y"}${data.skipped > 0 ? ` (${data.skipped} already imported)` : ""}.`);
+      let msg = `Synced ${data.synced} new entr${data.synced !== 1 ? "ies" : "y"}${data.skipped > 0 ? ` (${data.skipped} already imported)` : ""}.`;
+      if (data.synced === 0 && data.debug) {
+        msg += ` [Debug: fetched ${data.debug.total_fetched} entries, looking for project_id=${data.debug.looking_for_project_id}, found IDs: ${JSON.stringify(data.debug.sample_project_ids_in_entries)}]`;
+      }
+      setSyncResult(msg);
       if (data.synced > 0) {
         // Refresh entries list
         const hoursRes = await fetch(`/api/projects/${hoursProject.id}/hours`);
