@@ -33,7 +33,7 @@ export default function TeamPage({ members: initial }: Props) {
   });
 
   function handleAdded(m: TeamMember) {
-    setMembers((prev) => [...prev, m]);
+    setMembers((prev) => prev.some((x) => x.id === m.id) ? prev : [...prev, m]);
     setAddOpen(false);
   }
 

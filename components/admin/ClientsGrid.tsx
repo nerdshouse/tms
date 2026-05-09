@@ -39,7 +39,7 @@ export default function ClientsGrid({ clients: initial, projects: initialProject
   });
 
   function handleClientAdded(client: Client) {
-    setClients((prev) => [client, ...prev]);
+    setClients((prev) => prev.some((c) => c.id === client.id) ? prev : [client, ...prev]);
     setAddClientOpen(false);
   }
 

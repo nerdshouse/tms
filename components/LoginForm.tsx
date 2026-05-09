@@ -38,7 +38,9 @@ export default function LoginForm() {
         router.replace("/");
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("getRedirectResult error:", err);
+        setError(msg || "Sign-in failed. Please try again.");
         setLoading(false);
       });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -47,10 +49,11 @@ export default function LoginForm() {
     setLoading(true);
     setError("");
     try {
-      // signInWithRedirect navigates away — no popup, no COOP issues
       await signInWithRedirect(auth, googleProvider);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("signInWithRedirect error:", err);
+      setError(msg || "Sign-in failed. Please try again.");
       setLoading(false);
     }
   }
