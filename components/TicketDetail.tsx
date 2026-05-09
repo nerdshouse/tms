@@ -155,7 +155,7 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
                     return isImage ? (
                       <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={url} alt={name} className="h-20 w-auto rounded-lg border border-border object-cover hover:opacity-90 transition" />
+                        <img src={url} alt={name} className="max-w-full max-h-96 rounded-lg border border-border object-contain hover:opacity-90 transition" />
                       </a>
                     ) : (
                       <a key={i} href={url} target="_blank" rel="noopener noreferrer"
