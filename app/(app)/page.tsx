@@ -34,6 +34,7 @@ export default async function Home({
       isAdmin={isAdmin}
       initialStatus={searchParams.status ?? "all"}
       initialSearch={searchParams.q ?? ""}
+      clientId={!isAdmin ? effectiveClientId(client) : undefined}
     />
   );
 }

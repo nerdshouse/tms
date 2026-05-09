@@ -16,6 +16,8 @@ interface IssueTableProps {
   initialSearch: string;
   /** When set, this table is scoped to a single project */
   project?: Project;
+  /** Client UID — used to scope realtime subscription for non-admin users */
+  clientId?: string;
 }
 
 const statusTabs = [
@@ -26,14 +28,23 @@ const statusTabs = [
   { label: "Done",        value: "done" },
 ];
 
-export default function IssueTable({ tickets: initialTickets, isAdmin, initialStatus, initialSearch, project }: IssueTableProps) {
+export default function IssueTable({ tickets: initialTickets, isAdmin, initialStatus, initialSearch, project, clientId }: IssueTableProps) {
   const [tickets, setTickets] = useState(initialTickets);
   const [activeStatus, setActiveStatus] = useState(initialStatus);
   const [search, setSearch] = useState(initialSearch);
 
+  // Firestore rules only allow clients to query by client_id, not project_id.
+  // Admins can use any filter. For project-scoped views, non-admins subscribe
+  // to their client_id and filter in the memo — admins subscribe by project_id.
+  const realtimeFilter = project
+    ? isAdmin
+      ? { column: "project_id", value: project.id }
+      : clientId ? { column: "client_id", value: clientId } : undefined
+    : undefined;
+
   useRealtime<Ticket>({
     table: "tickets",
-    filter: project ? { column: "project_id", value: project.id } : undefined,
+    filter: realtimeFilter,
     events: ["INSERT", "UPDATE"],
     onInsert: (row) => setTickets((prev) => prev.some((t) => t.id === row.id) ? prev : [row, ...prev]),
     onUpdate: (row) =>
@@ -45,6 +56,8 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
   const filtered = useMemo(
     () =>
       tickets.filter((t) => {
+        // When scoped to a project, only show that project's tickets
+        if (project && t.project_id !== project.id) return false;
         const matchesStatus = activeStatus === "all" || t.status === activeStatus;
         const q = search.toLowerCase();
         const matchesSearch =
@@ -56,7 +69,7 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
           (isAdmin && t.clients?.name?.toLowerCase().includes(q));
         return matchesStatus && matchesSearch;
       }),
-    [tickets, activeStatus, search, isAdmin]
+    [tickets, activeStatus, search, isAdmin, project]
   );
 
   return (

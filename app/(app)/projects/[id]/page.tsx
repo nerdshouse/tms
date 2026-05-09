@@ -3,8 +3,6 @@ import IssueTable from "@/components/IssueTable";
 import {
   getSessionClient, adminDb, docToTicket, docToProject, effectiveClientId,
 } from "@/lib/firebase/helpers";
-import type { Ticket } from "@/types";
-
 export const dynamic = "force-dynamic";
 
 export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
@@ -28,7 +26,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
     redirect("/projects");
   }
 
-  const tickets: Ticket[] = ticketsSnap.docs.map(docToTicket);
+  const tickets = ticketsSnap.docs.map(docToTicket);
 
   return (
     <IssueTable
@@ -37,6 +35,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
       initialStatus="all"
       initialSearch=""
       project={project}
+      clientId={effectiveClientId(client)}
     />
   );
 }

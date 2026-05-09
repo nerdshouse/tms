@@ -15,12 +15,17 @@ export default async function ProjectsPage() {
     client.is_admin
       ? adminDb.collection("projects").orderBy("created_at").get()
       : adminDb.collection("projects").where("client_id", "==", clientId).orderBy("created_at").get(),
+    // .select() avoids downloading full ticket documents — just need project_id + status
     client.is_admin
       ? adminDb.collection("tickets").select("project_id", "status").get()
-      : adminDb.collection("tickets").where("client_id", "==", clientId).select("project_id", "status").get(),
+      : adminDb
+          .collection("tickets")
+          .where("client_id", "==", clientId)
+          .select("project_id", "status")
+          .get(),
   ]);
 
-  // Build status-count map per project
+  // Build per-project status counts
   const statusMap: Record<string, Record<Status, number>> = {};
   ticketsSnap.docs.forEach((d) => {
     const pid    = d.data().project_id as string | null;
