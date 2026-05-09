@@ -31,6 +31,8 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
     description: "",
     project_id: defaultProjectId ?? "",
   });
+  const [pageUrl, setPageUrl] = useState("");
+  const [pageUrlError, setPageUrlError] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -63,12 +65,25 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
     setFiles((prev) => prev.filter((_, idx) => idx !== i));
   }
 
+  function validatePageUrl(val: string): string {
+    if (!val) return "";
+    try {
+      const u = new URL(val);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return "URL must start with http:// or https://";
+      return "";
+    } catch {
+      return "Please enter a valid URL (e.g. https://example.com/page)";
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.project_id && projects.length > 0) {
       setError("Please select a project.");
       return;
     }
+    const urlErr = validatePageUrl(pageUrl);
+    if (urlErr) { setPageUrlError(urlErr); return; }
     setSubmitting(true);
     setError("");
 
@@ -81,6 +96,7 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
 
       const body = new FormData();
       Object.entries(form).forEach(([k, v]) => body.append(k, v));
+      if (pageUrl.trim()) body.append("page_url", pageUrl.trim());
       if (attachmentUrls.length > 0) {
         body.append("attachment_urls", JSON.stringify(attachmentUrls));
       }
@@ -160,18 +176,20 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
         </div>
         <div>
           <label className="block text-[13px] font-medium text-foreground mb-1.5">Type</label>
-          <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as TicketType }))} className={field}>
+          <select disabled value={form.type} className={`${field} opacity-40 cursor-not-allowed`}>
             {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
+          <p className="text-[11px] text-muted mt-1">Set by Nerdshouse team</p>
         </div>
       </div>
 
       {/* Module */}
       <div>
         <label className="block text-[13px] font-medium text-foreground mb-1.5">Module</label>
-        <select value={form.module} onChange={(e) => setForm((f) => ({ ...f, module: e.target.value }))} className={field}>
+        <select disabled value={form.module} className={`${field} opacity-40 cursor-not-allowed`}>
           {MODULES.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
+        <p className="text-[11px] text-muted mt-1">Set by Nerdshouse team</p>
       </div>
 
       {/* Description */}
@@ -187,6 +205,23 @@ export default function NewRequestForm({ defaultProjectId }: { defaultProjectId?
           rows={5}
           className={`${field} resize-none`}
         />
+      </div>
+
+      {/* Page URL */}
+      <div>
+        <label className="block text-[13px] font-medium text-foreground mb-1.5">
+          Page URL <span className="text-muted font-normal">(optional)</span>
+        </label>
+        <input
+          type="url"
+          value={pageUrl}
+          onChange={(e) => { setPageUrl(e.target.value); setPageUrlError(""); }}
+          onBlur={() => setPageUrlError(validatePageUrl(pageUrl))}
+          placeholder="https://app.example.com/the-page-with-the-issue"
+          className={field}
+        />
+        {pageUrlError && <p className="text-[11px] text-red-500 mt-1">{pageUrlError}</p>}
+        {!pageUrlError && <p className="text-[11px] text-muted mt-1">Link to the page where the issue occurs</p>}
       </div>
 
       {/* File Upload */}

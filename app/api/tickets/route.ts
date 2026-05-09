@@ -17,6 +17,7 @@ export async function POST(request: Request) {
   const projectId      = formData.get("project_id") as string | null;
   const attachmentRaw  = formData.get("attachment_urls") as string | null;
   const attachmentUrls: string[] = attachmentRaw ? JSON.parse(attachmentRaw) : [];
+  const pageUrl        = (formData.get("page_url") as string | null)?.trim() || null;
 
   if (!title || !description) {
     return NextResponse.json({ error: "Title and description are required" }, { status: 400 });
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
     assignee_name:    null,
     assignee_initials: null,
     attachments:      attachmentUrls,
+    page_url:         pageUrl,
     created_at: now,
     updated_at: now,
   });

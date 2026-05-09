@@ -278,6 +278,21 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
                   </div>
                 </>
               )}
+              {localTicket.page_url && (
+                <div>
+                  <dt className="text-muted text-[11px] mb-0.5">Page URL</dt>
+                  <dd>
+                    <a
+                      href={localTicket.page_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[12px] text-accent hover:underline break-all"
+                    >
+                      {localTicket.page_url}
+                    </a>
+                  </dd>
+                </div>
+              )}
               {localTicket.due_date && (
                 <div>
                   <dt className="text-muted text-[11px] mb-0.5">Due Date</dt>

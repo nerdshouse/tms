@@ -81,6 +81,7 @@ export function docToTicket(snap: firestore.DocumentSnapshot): Ticket {
     project_id:  d.project_id ?? null,
     assignee_id: d.assignee_id ?? null,
     attachments: Array.isArray(d.attachments) ? d.attachments : undefined,
+    page_url:    d.page_url ?? null,
     due_date:    d.due_date ?? null,
     created_at:  tsToIso(d.created_at),
     updated_at:  tsToIso(d.updated_at),

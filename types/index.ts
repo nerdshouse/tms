@@ -61,6 +61,7 @@ export interface Ticket {
   project_id: string | null;
   assignee_id: string | null;
   attachments?: string[];
+  page_url?: string | null;
   due_date?: string | null;
   created_at: string;
   updated_at: string;
