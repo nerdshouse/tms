@@ -10,9 +10,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const queryClientId = effectiveClientId(client);
 
+  // No orderBy here — sorted in memory below to avoid composite index requirement
   const projectsQuery = client.is_admin
-    ? adminDb.collection("projects").orderBy("created_at")
-    : adminDb.collection("projects").where("client_id", "==", queryClientId).orderBy("created_at");
+    ? adminDb.collection("projects")
+    : adminDb.collection("projects").where("client_id", "==", queryClientId);
 
   const queries: Promise<unknown>[] = [
     projectsQuery.get(),
@@ -33,10 +34,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (pid) countMap[pid] = (countMap[pid] ?? 0) + 1;
   });
 
-  const projects: (Project & { ticket_count: number })[] = projectsSnap.docs.map((snap) => ({
-    ...docToProject(snap),
-    ticket_count: countMap[snap.id] ?? 0,
-  }));
+  const projects: (Project & { ticket_count: number })[] = projectsSnap.docs
+    .map((snap) => ({
+      ...docToProject(snap),
+      ticket_count: countMap[snap.id] ?? 0,
+    }))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   let poc: TeamMember | null = null;
   if (!client.is_admin && client.poc_id && results[2]) {

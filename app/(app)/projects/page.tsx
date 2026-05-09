@@ -12,9 +12,10 @@ export default async function ProjectsPage() {
   const clientId = effectiveClientId(client);
 
   const [projectsSnap, ticketsSnap] = await Promise.all([
+    // No orderBy — sort in memory to avoid composite index requirement
     client.is_admin
-      ? adminDb.collection("projects").orderBy("created_at").get()
-      : adminDb.collection("projects").where("client_id", "==", clientId).orderBy("created_at").get(),
+      ? adminDb.collection("projects").get()
+      : adminDb.collection("projects").where("client_id", "==", clientId).get(),
     // .select() avoids downloading full ticket documents — just need project_id + status
     client.is_admin
       ? adminDb.collection("tickets").select("project_id", "status").get()
@@ -35,10 +36,13 @@ export default async function ProjectsPage() {
     statusMap[pid][status] = (statusMap[pid][status] ?? 0) + 1;
   });
 
-  const projects = projectsSnap.docs.map((snap) => ({
-    ...docToProject(snap),
-    statusCounts: statusMap[snap.id] ?? { open: 0, in_progress: 0, review: 0, done: 0 },
-  })) as (Project & { statusCounts: Record<Status, number> })[];
+  const projects = projectsSnap.docs
+    .map((snap) => ({
+      ...docToProject(snap),
+      statusCounts: statusMap[snap.id] ?? { open: 0, in_progress: 0, review: 0, done: 0 },
+    }))
+    // Sort by created_at ascending in memory
+    .sort((a, b) => a.created_at.localeCompare(b.created_at)) as (Project & { statusCounts: Record<Status, number> })[];
 
   return <ProjectsOverview projects={projects} isAdmin={client.is_admin} />;
 }

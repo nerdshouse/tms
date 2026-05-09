@@ -11,11 +11,8 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
 
   const [projectSnap, ticketsSnap] = await Promise.all([
     adminDb.collection("projects").doc(params.id).get(),
-    adminDb
-      .collection("tickets")
-      .where("project_id", "==", params.id)
-      .orderBy("updated_at", "desc")
-      .get(),
+    // No orderBy — sort in memory to avoid composite index requirement
+    adminDb.collection("tickets").where("project_id", "==", params.id).get(),
   ]);
 
   if (!projectSnap.exists) notFound();
@@ -26,7 +23,10 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
     redirect("/projects");
   }
 
-  const tickets = ticketsSnap.docs.map(docToTicket);
+  // Sort descending by updated_at in memory
+  const tickets = ticketsSnap.docs
+    .map(docToTicket)
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
 
   return (
     <IssueTable
