@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -22,8 +23,19 @@ const app = typeof window !== "undefined"
 export const auth        = app ? getAuth(app)      : (null as any);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const db          = app ? getFirestore(app) : (null as any);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const storage     = app ? getStorage(app)   : (null as any);
 export const googleProvider = new GoogleAuthProvider();
 export { signInWithPopup, signOut };
+
+/** Upload a file to Firebase Storage under attachments/{uid}/{timestamp}_{name}.
+ *  Returns the public download URL. */
+export async function uploadAttachment(uid: string, file: File): Promise<string> {
+  const path = `attachments/${uid}/${Date.now()}_${file.name}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
 
 /** Alias kept for callers that used getDb() after the proxy migration. */
 export function getDb() { return db; }

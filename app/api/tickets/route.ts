@@ -8,12 +8,14 @@ export async function POST(request: Request) {
   if (!client) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const formData = await request.formData();
-  const title       = formData.get("title") as string;
-  const priority    = formData.get("priority") as string;
-  const ticketType  = formData.get("type") as string;
-  const ticketModule = formData.get("module") as string;
-  const description = formData.get("description") as string;
-  const projectId   = formData.get("project_id") as string | null;
+  const title          = formData.get("title") as string;
+  const priority       = formData.get("priority") as string;
+  const ticketType     = formData.get("type") as string;
+  const ticketModule   = formData.get("module") as string;
+  const description    = formData.get("description") as string;
+  const projectId      = formData.get("project_id") as string | null;
+  const attachmentRaw  = formData.get("attachment_urls") as string | null;
+  const attachmentUrls: string[] = attachmentRaw ? JSON.parse(attachmentRaw) : [];
 
   if (!title || !description) {
     return NextResponse.json({ error: "Title and description are required" }, { status: 400 });
@@ -48,6 +50,7 @@ export async function POST(request: Request) {
     assignee_id:      null,
     assignee_name:    null,
     assignee_initials: null,
+    attachments:      attachmentUrls,
     created_at: now,
     updated_at: now,
   });

@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Loader2, Send } from "lucide-react";
+import { ChevronLeft, Loader2, Send, Paperclip } from "lucide-react";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
 import { formatIST, formatISTShort } from "@/lib/utils";
@@ -25,7 +24,6 @@ const STATUS_OPTIONS: { value: Status; label: string }[] = [
 ];
 
 export default function TicketDetail({ ticket, updates, currentClient, teamMembers }: TicketDetailProps) {
-  const router = useRouter();
   const [message, setMessage] = useState("");
   const [newStatus, setNewStatus] = useState<Status>(ticket.status);
   const [newAssigneeId, setNewAssigneeId] = useState<string>(ticket.assignee_id ?? "");
@@ -70,7 +68,8 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to post reply");
-      setLocalUpdates((prev) => [...prev, data]);
+      // Dedup: realtime onInsert may fire before or after this response
+      setLocalUpdates((prev) => prev.some((u) => u.id === data.id) ? prev : [...prev, data]);
       setMessage("");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -101,7 +100,6 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
         assignee_id: newAssigneeId || null,
         team_members: assignee ? { name: assignee.name, avatar_initials: assignee.avatar_initials } : undefined,
       }));
-      router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -138,6 +136,31 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
               <StatusIcon status={localTicket.status} showLabel />
             </div>
             <p className="text-[13px] text-muted leading-relaxed whitespace-pre-wrap">{localTicket.description}</p>
+            {localTicket.attachments && localTicket.attachments.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <Paperclip size={11} /> Attachments
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {localTicket.attachments.map((url, i) => {
+                    const name = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? `file-${i + 1}`).replace(/^\d+_/, "");
+                    const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name);
+                    return isImage ? (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt={name} className="h-20 w-auto rounded-lg border border-border object-cover hover:opacity-90 transition" />
+                      </a>
+                    ) : (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-border rounded-lg text-[12px] text-muted hover:text-accent hover:border-accent/40 transition">
+                        <Paperclip size={11} />
+                        <span className="truncate max-w-[180px]">{name}</span>
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Activity */}

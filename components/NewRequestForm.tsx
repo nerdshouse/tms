@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { useRouter } from "next/navigation";
 import { Upload, X, Loader2 } from "lucide-react";
+import { auth, uploadAttachment } from "@/lib/firebase/client";
 import type { Priority, TicketType, Project } from "@/types";
 
 const MODULES = [
@@ -69,16 +70,23 @@ export default function NewRequestForm() {
     setError("");
 
     try {
+      // Upload attachments to Firebase Storage first
+      const uid = auth?.currentUser?.uid ?? "unknown";
+      const attachmentUrls = files.length > 0
+        ? await Promise.all(files.map((f) => uploadAttachment(uid, f)))
+        : [];
+
       const body = new FormData();
       Object.entries(form).forEach(([k, v]) => body.append(k, v));
-      files.forEach((f) => body.append("files", f));
+      if (attachmentUrls.length > 0) {
+        body.append("attachment_urls", JSON.stringify(attachmentUrls));
+      }
 
       const res = await fetch("/api/tickets", { method: "POST", body });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to create ticket");
 
       router.push(`/tickets/${data.id}`);
-      router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

@@ -60,6 +60,7 @@ export interface Ticket {
   client_id: string;
   project_id: string | null;
   assignee_id: string | null;
+  attachments?: string[];
   created_at: string;
   updated_at: string;
   clients?: Pick<Client, "name" | "company" | "email">;
