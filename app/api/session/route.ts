@@ -15,138 +15,136 @@ function isEnvAdmin(email: string): boolean {
 }
 
 export async function POST(request: Request) {
-  const { idToken } = await request.json() as { idToken?: string };
-  if (!idToken) return NextResponse.json({ error: "idToken required" }, { status: 400 });
-
-  let decoded: admin.auth.DecodedIdToken;
   try {
-    decoded = await adminAuth.verifyIdToken(idToken);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("verifyIdToken failed:", msg);
-    return NextResponse.json({ error: "Invalid token", detail: msg }, { status: 401 });
-  }
+    const body = await request.json().catch(() => ({})) as { idToken?: string };
+    const { idToken } = body;
+    if (!idToken) return NextResponse.json({ error: "idToken required" }, { status: 400 });
 
-  const { uid, email, name: googleName, picture } = decoded;
-  if (!email) return NextResponse.json({ error: "No email associated with this account" }, { status: 400 });
+    // ── 1. Verify the Google ID token ─────────────────────────────────────────
+    let decoded: admin.auth.DecodedIdToken;
+    try {
+      decoded = await adminAuth.verifyIdToken(idToken);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("verifyIdToken failed:", msg);
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
 
-  // ── 1. Check if this UID already has a clients doc (returning user) ────────
-  const clientRef  = adminDb.collection("clients").doc(uid);
-  const clientSnap = await clientRef.get();
+    const { uid, email, name: googleName, picture } = decoded;
+    if (!email) return NextResponse.json({ error: "No email associated with this account" }, { status: 400 });
 
-  if (!clientSnap.exists) {
-    // ── 2. First sign-in: determine access level ────────────────────────────
-    const now = admin.firestore.FieldValue.serverTimestamp();
+    // ── 2. Check if this UID already has a clients doc (returning user) ────────
+    const clientRef  = adminDb.collection("clients").doc(uid);
+    const clientSnap = await clientRef.get();
 
-    // Env-var admin whitelist takes priority — bypasses Firestore lookup
-    if (isEnvAdmin(email)) {
-      await clientRef.set({
-        name:       googleName ?? email.split("@")[0],
-        email,
-        company:    "Nerdshouse Technologies LLP",
-        is_admin:   true,
-        status:     "active",
-        avatar_url: picture ?? null,
-        created_at: now,
-      });
-      await adminAuth.setCustomUserClaims(uid, { is_admin: true });
+    if (!clientSnap.exists) {
+      // ── 3. First sign-in: determine access level ──────────────────────────
+      const now = admin.firestore.FieldValue.serverTimestamp();
 
-    } else {
-      const [teamSnap, existingClientSnap, contactsSnap] = await Promise.all([
-        adminDb.collection("team_members").where("email", "==", email).limit(1).get(),
-        adminDb.collection("clients").where("email", "==", email).limit(1).get(),
-        adminDb.collectionGroup("contacts").where("email", "==", email).limit(1).get(),
-      ]);
-
-      const isTeamMember     = !teamSnap.empty;
-      const isExistingClient = !existingClientSnap.empty;
-      const isContact        = !contactsSnap.empty;
-
-      if (!isTeamMember && !isExistingClient && !isContact) {
-        return NextResponse.json(
-          {
-            error:   "access_denied",
-            message: "Access not granted. Contact Nerdshouse at hello@nerdshouse.com",
-          },
-          { status: 403 }
-        );
-      }
-
-      if (isTeamMember) {
-        const tmDoc = teamSnap.docs[0];
-        const tm    = tmDoc.data();
+      if (isEnvAdmin(email)) {
         await clientRef.set({
-          name:           tm.name ?? googleName ?? email.split("@")[0],
+          name:       googleName ?? email.split("@")[0],
           email,
-          company:        "Nerdshouse Technologies LLP",
-          is_admin:       true,
-          team_role:      tm.role,
-          team_member_id: tmDoc.id,
-          status:         "active",
-          avatar_url:     picture ?? null,
-          created_at:     now,
+          company:    "Nerdshouse Technologies LLP",
+          is_admin:   true,
+          status:     "active",
+          avatar_url: picture ?? null,
+          created_at: now,
         });
         await adminAuth.setCustomUserClaims(uid, { is_admin: true });
 
-      } else if (isExistingClient) {
-        const existingData = existingClientSnap.docs[0].data();
-        const oldDocId     = existingClientSnap.docs[0].id;
-
-        await clientRef.set({
-          ...existingData,
-          avatar_url: picture ?? existingData.avatar_url ?? null,
-          created_at: existingData.created_at ?? now,
-        });
-
-        if (oldDocId !== uid) {
-          await adminDb.collection("clients").doc(oldDocId).delete();
-        }
-        await adminAuth.setCustomUserClaims(uid, { is_admin: false });
-
       } else {
-        // Contact: create client doc linked to parent
-        const contactDoc       = contactsSnap.docs[0];
-        const parentClientId   = contactDoc.ref.parent.parent!.id;
-        const parentClientSnap = await adminDb.collection("clients").doc(parentClientId).get();
-        const parentData       = parentClientSnap.exists ? parentClientSnap.data()! : {};
+        const [teamSnap, existingClientSnap, contactsSnap] = await Promise.all([
+          adminDb.collection("team_members").where("email", "==", email).limit(1).get(),
+          adminDb.collection("clients").where("email", "==", email).limit(1).get(),
+          adminDb.collectionGroup("contacts").where("email", "==", email).limit(1).get(),
+        ]);
 
-        await clientRef.set({
-          name:             googleName ?? email.split("@")[0],
-          email,
-          company:          parentData.company ?? "",
-          is_admin:         false,
-          is_contact:       true,
-          parent_client_id: parentClientId,
-          status:           "active",
-          avatar_url:       picture ?? null,
-          created_at:       now,
-        });
-        await adminAuth.setCustomUserClaims(uid, { is_admin: false });
-        await contactDoc.ref.update({ status: "active" });
+        const isTeamMember     = !teamSnap.empty;
+        const isExistingClient = !existingClientSnap.empty;
+        const isContact        = !contactsSnap.empty;
+
+        if (!isTeamMember && !isExistingClient && !isContact) {
+          return NextResponse.json(
+            {
+              error:   "access_denied",
+              message: "Access not granted. Contact Nerdshouse at hello@nerdshouse.com",
+            },
+            { status: 403 }
+          );
+        }
+
+        if (isTeamMember) {
+          const tmDoc = teamSnap.docs[0];
+          const tm    = tmDoc.data();
+          await clientRef.set({
+            name:           tm.name ?? googleName ?? email.split("@")[0],
+            email,
+            company:        "Nerdshouse Technologies LLP",
+            is_admin:       true,
+            team_role:      tm.role,
+            team_member_id: tmDoc.id,
+            status:         "active",
+            avatar_url:     picture ?? null,
+            created_at:     now,
+          });
+          await adminAuth.setCustomUserClaims(uid, { is_admin: true });
+
+        } else if (isExistingClient) {
+          const existingData = existingClientSnap.docs[0].data();
+          const oldDocId     = existingClientSnap.docs[0].id;
+
+          await clientRef.set({
+            ...existingData,
+            avatar_url: picture ?? existingData.avatar_url ?? null,
+            created_at: existingData.created_at ?? now,
+          });
+
+          if (oldDocId !== uid) {
+            await adminDb.collection("clients").doc(oldDocId).delete();
+          }
+          await adminAuth.setCustomUserClaims(uid, { is_admin: false });
+
+        } else {
+          // Contact: create client doc linked to parent
+          const contactDoc       = contactsSnap.docs[0];
+          const parentClientId   = contactDoc.ref.parent.parent!.id;
+          const parentClientSnap = await adminDb.collection("clients").doc(parentClientId).get();
+          const parentData       = parentClientSnap.exists ? parentClientSnap.data()! : {};
+
+          await clientRef.set({
+            name:             googleName ?? email.split("@")[0],
+            email,
+            company:          parentData.company ?? "",
+            is_admin:         false,
+            is_contact:       true,
+            parent_client_id: parentClientId,
+            status:           "active",
+            avatar_url:       picture ?? null,
+            created_at:       now,
+          });
+          await adminAuth.setCustomUserClaims(uid, { is_admin: false });
+          await contactDoc.ref.update({ status: "active" });
+        }
+      }
+    } else {
+      // ── 4. Backfill team_role / team_member_id for returning team members ──
+      //    Docs created before these fields were added won't have them.
+      const d = clientSnap.data()!;
+      if (d.is_admin === true && !d.team_role && !isEnvAdmin(email)) {
+        const tmSnap = await adminDb.collection("team_members").where("email", "==", email).limit(1).get();
+        if (!tmSnap.empty) {
+          const tmDoc = tmSnap.docs[0];
+          await clientRef.update({ team_role: tmDoc.data().role, team_member_id: tmDoc.id });
+        }
       }
     }
-  }
 
-  // ── 3. Backfill team_role / team_member_id for returning team members ────
-  //    Existing docs created before these fields were added won't have them.
-  if (clientSnap.exists) {
-    const d = clientSnap.data()!;
-    if (d.is_admin === true && !d.team_role && !isEnvAdmin(email)) {
-      // Might be a team member whose doc predates team_role field
-      const tmSnap = await adminDb.collection("team_members").where("email", "==", email).limit(1).get();
-      if (!tmSnap.empty) {
-        const tmDoc = tmSnap.docs[0];
-        await clientRef.update({ team_role: tmDoc.data().role, team_member_id: tmDoc.id });
-      }
-    }
-  }
+    // ── 5. Determine role for the role hint cookie ────────────────────────────
+    const freshData = clientSnap.exists ? clientSnap.data() : (await clientRef.get()).data();
+    const isAdmin   = freshData?.is_admin === true;
 
-  // ── 4. Determine role for the role hint cookie ────────────────────────────
-  const freshData = clientSnap.exists ? clientSnap.data() : (await clientRef.get()).data();
-  const isAdmin   = freshData?.is_admin === true;
-
-  // ── 4. Issue session cookie ───────────────────────────────────────────────
-  try {
+    // ── 6. Issue session cookie ───────────────────────────────────────────────
     const sessionCookie = await adminAuth.createSessionCookie(idToken, {
       expiresIn: SESSION_EXPIRES_MS,
     });
@@ -167,9 +165,13 @@ export async function POST(request: Request) {
       sameSite: "lax",
     });
     return response;
+
   } catch (err) {
-    console.error("createSessionCookie:", err);
-    return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
+    console.error("POST /api/session unhandled error:", err);
+    return NextResponse.json(
+      { error: "Internal server error", detail: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
   }
 }
 

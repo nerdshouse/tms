@@ -22,7 +22,7 @@ export default function LoginForm() {
         body:    JSON.stringify({ idToken }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         await signOut(auth);
         setError(data.message ?? "Access denied. Contact Nerdshouse to get access.");
