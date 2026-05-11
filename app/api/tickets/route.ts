@@ -18,6 +18,7 @@ export async function POST(request: Request) {
   const attachmentsRaw = formData.get("attachments") as string | null;
   const attachments    = attachmentsRaw ? JSON.parse(attachmentsRaw) : [];
   const pageUrl        = (formData.get("page_url") as string | null)?.trim() || null;
+  const dueDate        = (formData.get("due_date") as string | null) || null;
 
   if (!title || !description) {
     return NextResponse.json({ error: "Title and description are required" }, { status: 400 });
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
     assignee_initials: null,
     attachments:      attachments,
     page_url:         pageUrl,
+    due_date:         dueDate,
     created_at: now,
     updated_at: now,
   });

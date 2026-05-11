@@ -93,6 +93,7 @@ export default function NewRequestForm({
     // project_id will be reset by the useEffect above
   }
 
+  const [dueDate, setDueDate] = useState("");
   const [pageUrl, setPageUrl] = useState("");
   const [pageUrlError, setPageUrlError] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -170,6 +171,7 @@ export default function NewRequestForm({
       const body = new FormData();
       Object.entries(form).forEach(([k, v]) => body.append(k, v));
       if (isAdmin && selectedClientId) body.append("for_client_id", selectedClientId);
+      if (dueDate) body.append("due_date", dueDate);
       if (pageUrl.trim()) body.append("page_url", pageUrl.trim());
       if (attachments.length > 0) body.append("attachments", JSON.stringify(attachments));
 
@@ -305,6 +307,21 @@ export default function NewRequestForm({
           rows={5}
           className={`${field} resize-none`}
         />
+      </div>
+
+      {/* Due Date */}
+      <div>
+        <label className="block text-[13px] font-medium text-foreground mb-1.5">
+          Due Date <span className="text-muted font-normal">(optional)</span>
+        </label>
+        <input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          min={new Date().toISOString().slice(0, 10)}
+          className={field}
+        />
+        <p className="text-[11px] text-muted mt-1">When do you need this resolved by?</p>
       </div>
 
       {/* Page URL */}
