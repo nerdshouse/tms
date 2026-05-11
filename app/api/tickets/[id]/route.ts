@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
+import { adminDb, getSessionClient, effectiveClientId } from "@/lib/firebase/helpers";
 import { sendStatusChangedEmail } from "@/lib/email";
 import { notifyTicketAssigned } from "@/lib/email/notifications";
 import { logEvent } from "@/lib/log";
@@ -18,8 +18,8 @@ export async function DELETE(
 
   const ticketData = snap.data()!;
 
-  // Clients can only delete their own tickets
-  if (!me.is_admin && ticketData.client_id !== me.id) {
+  // Clients (including contacts) can only delete tickets under their client account
+  if (!me.is_admin && ticketData.client_id !== effectiveClientId(me)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -61,8 +61,8 @@ export async function PATCH(
 
   const ticketData = ticketSnap.data()!;
 
-  // Clients can only edit their own tickets
-  if (!me.is_admin && ticketData.client_id !== me.id) {
+  // Clients (including contacts) can only edit tickets under their client account
+  if (!me.is_admin && ticketData.client_id !== effectiveClientId(me)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

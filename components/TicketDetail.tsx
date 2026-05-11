@@ -38,7 +38,10 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
   const [localTicket, setLocalTicket] = useState(ticket);
 
   // Client edit state
-  const isOwner = !currentClient.is_admin && localTicket.client_id === currentClient.id;
+  const effectiveId = currentClient.is_contact && currentClient.parent_client_id
+    ? currentClient.parent_client_id
+    : currentClient.id;
+  const isOwner = !currentClient.is_admin && localTicket.client_id === effectiveId;
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     title:       ticket.title,
