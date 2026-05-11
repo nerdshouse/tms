@@ -172,7 +172,7 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
             <tr className="border-b border-border bg-gray-50/60">
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-24">ID</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide">Title</th>
-              {project && <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide">Description</th>}
+              <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide">Description</th>
               {isAdmin && !project && (
                 <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-28">Client</th>
               )}
@@ -188,7 +188,7 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={project ? 9 : isAdmin ? 10 : 9} className="px-4 py-12 text-center text-muted text-[13px]">
+                <td colSpan={project ? 9 : isAdmin ? 11 : 10} className="px-4 py-12 text-center text-muted text-[13px]">
                   No issues found.
                 </td>
               </tr>
@@ -205,11 +205,9 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
                   <td className="px-4 py-3">
                     <span className="font-medium text-foreground line-clamp-1">{ticket.title}</span>
                   </td>
-                  {project && (
-                    <td className="px-4 py-3 text-muted max-w-[220px]">
-                      <span className="line-clamp-2 text-[12px]">{ticket.description || "—"}</span>
-                    </td>
-                  )}
+                  <td className="px-4 py-3 text-muted max-w-[220px]">
+                    <span className="line-clamp-2 text-[12px]">{ticket.description || "—"}</span>
+                  </td>
                   {isAdmin && !project && (
                     <td className="px-4 py-3 text-muted">{ticket.clients?.name ?? "—"}</td>
                   )}
