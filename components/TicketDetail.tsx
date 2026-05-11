@@ -223,17 +223,22 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
             ) : (
               <div className="space-y-4">
                 {localUpdates.map((u) => (
-                  <div key={u.id} className="flex gap-3">
+                  <div key={u.id} className={`flex gap-3 ${u.author_type === "client" ? "pl-4" : ""}`}>
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-semibold ${
-                      u.author_type === "team" ? "bg-accent/15 text-accent" : "bg-gray-100 text-gray-600"
+                      u.author_type === "team" ? "bg-accent/15 text-accent" : "bg-blue-100 text-blue-700"
                     }`}>
                       {u.author_name[0]?.toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-[12px] font-medium text-foreground">{u.author_name}</span>
+                        <span className="text-[12px] font-medium text-foreground">
+                          {u.author_name === currentClient.name ? "You" : u.author_name}
+                        </span>
                         {u.author_type === "team" && (
                           <span className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded font-medium">Team</span>
+                        )}
+                        {u.author_type === "client" && u.author_name !== currentClient.name && (
+                          <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">Client</span>
                         )}
                         <span className="text-[11px] text-muted">{formatISTShort(u.created_at)}</span>
                       </div>
