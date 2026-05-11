@@ -21,8 +21,10 @@ export async function PATCH(
     if ("status"           in body) allowed.status           = body.status;
     if ("company"          in body) allowed.company          = body.company;
     if ("name"             in body) allowed.name             = body.name;
+    if ("phone"            in body) allowed.phone            = (body.phone as string)?.trim() ?? "";
+    if ("gst_number"       in body) allowed.gst_number       = (body.gst_number as string)?.trim().toUpperCase() ?? "";
     if ("assigned_members" in body) allowed.assigned_members = body.assigned_members ?? [];
-  } else if (["status", "company", "name", "assigned_members"].some((k) => k in body)) {
+  } else if (["status", "company", "name", "phone", "gst_number", "assigned_members"].some((k) => k in body)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

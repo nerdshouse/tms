@@ -56,6 +56,8 @@ export function docToClient(snap: firestore.DocumentSnapshot): Client {
     name:              d.name,
     company:           d.company ?? "",
     email:             d.email,
+    phone:             d.phone ?? undefined,
+    gst_number:        d.gst_number ?? undefined,
     is_admin:          d.is_admin ?? false,
     is_contact:        d.is_contact ?? false,
     parent_client_id:  d.parent_client_id ?? undefined,

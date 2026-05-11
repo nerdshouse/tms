@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (me.team_role && me.team_role !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { name, company, email: rawEmail, status } = await request.json();
+  const { name, company, email: rawEmail, status, phone, gst_number } = await request.json();
   if (!name || !rawEmail) return NextResponse.json({ error: "Name and email required" }, { status: 400 });
 
   const email = rawEmail.trim().toLowerCase();
@@ -30,6 +30,8 @@ export async function POST(request: Request) {
     name,
     company:    company ?? "",
     email,
+    phone:      phone?.trim() ?? "",
+    gst_number: gst_number?.trim().toUpperCase() ?? "",
     is_admin:   false,
     status:     status ?? "active",
     created_at: now,
@@ -44,5 +46,5 @@ export async function POST(request: Request) {
     user_name:   me.name,
   }).catch(console.error);
 
-  return NextResponse.json({ id: uid, name, company: company ?? "", email, is_admin: false, status: status ?? "active" });
+  return NextResponse.json({ id: uid, name, company: company ?? "", email, phone: phone?.trim() ?? "", gst_number: gst_number?.trim().toUpperCase() ?? "", is_admin: false, status: status ?? "active" });
 }

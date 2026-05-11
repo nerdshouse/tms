@@ -12,7 +12,7 @@ interface Props {
 const field = "w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition";
 
 export default function AddClientSheet({ onSuccess, onClose }: Props) {
-  const [form, setForm] = useState({ name: "", company: "", email: "", status: "active" as ClientStatus });
+  const [form, setForm] = useState({ name: "", company: "", email: "", phone: "", gst_number: "", status: "active" as ClientStatus });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -47,16 +47,28 @@ export default function AddClientSheet({ onSuccess, onClose }: Props) {
         <label className="block text-[12px] font-medium text-foreground mb-1.5">Company</label>
         <input type="text" value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} placeholder="Acme Corp" className={field} />
       </div>
-      <div>
-        <label className="block text-[12px] font-medium text-foreground mb-1.5">Email <span className="text-red-500">*</span></label>
-        <input type="email" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="priya@acme.com" className={field} />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-[12px] font-medium text-foreground mb-1.5">Email <span className="text-red-500">*</span></label>
+          <input type="email" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="priya@acme.com" className={field} />
+        </div>
+        <div>
+          <label className="block text-[12px] font-medium text-foreground mb-1.5">Phone</label>
+          <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+91 98765 43210" className={field} />
+        </div>
       </div>
-      <div>
-        <label className="block text-[12px] font-medium text-foreground mb-1.5">Status</label>
-        <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as ClientStatus }))} className={field}>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-[12px] font-medium text-foreground mb-1.5">GST Number</label>
+          <input type="text" value={form.gst_number} onChange={(e) => setForm((f) => ({ ...f, gst_number: e.target.value }))} placeholder="22AAAAA0000A1Z5" className={`${field} uppercase`} />
+        </div>
+        <div>
+          <label className="block text-[12px] font-medium text-foreground mb-1.5">Status</label>
+          <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as ClientStatus }))} className={field}>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
       </div>
 
       {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>}

@@ -19,6 +19,8 @@ export interface Client {
   name: string;
   company: string;
   email: string;
+  phone?: string;
+  gst_number?: string;
   is_admin: boolean;
   /** True when this user is an invited contact of a client (not the primary account holder) */
   is_contact?: boolean;

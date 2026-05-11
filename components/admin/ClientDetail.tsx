@@ -69,9 +69,9 @@ export default function ClientDetail({
 
   // Edit client
   const [editOpen, setEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState({ name: client.name, company: client.company, status: client.status });
+  const [editForm, setEditForm] = useState({ name: client.name, company: client.company, status: client.status, phone: client.phone ?? "", gst_number: client.gst_number ?? "" });
   const [saving, setSaving]     = useState(false);
-  const [localClient, setLocalClient] = useState({ name: client.name, company: client.company, status: client.status });
+  const [localClient, setLocalClient] = useState({ name: client.name, company: client.company, status: client.status, phone: client.phone ?? "", gst_number: client.gst_number ?? "" });
 
   // Delete client
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -174,7 +174,7 @@ export default function ClientDetail({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editForm),
     });
-    setLocalClient({ ...editForm });
+    setLocalClient({ name: editForm.name, company: editForm.company, status: editForm.status, phone: editForm.phone, gst_number: editForm.gst_number });
     setSaving(false);
     setEditOpen(false);
   }
@@ -412,7 +412,7 @@ export default function ClientDetail({
         {isFullAdmin && (
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
-              onClick={() => { setEditForm({ name: localClient.name, company: localClient.company, status: localClient.status }); setEditOpen(true); }}
+              onClick={() => { setEditForm({ name: localClient.name, company: localClient.company, status: localClient.status, phone: localClient.phone, gst_number: localClient.gst_number }); setEditOpen(true); }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-muted border border-border rounded-lg hover:bg-gray-50 hover:text-foreground transition"
             >
               <Pencil size={12} /> Edit
@@ -551,6 +551,20 @@ export default function ClientDetail({
                     <a href={`mailto:${client.email}`} className="text-accent hover:underline">{client.email}</a>
                   </dd>
                 </div>
+                {localClient.phone && (
+                  <div>
+                    <dt className="text-muted text-[11px] mb-0.5">Phone</dt>
+                    <dd>
+                      <a href={`tel:${localClient.phone}`} className="text-foreground hover:text-accent transition-colors">{localClient.phone}</a>
+                    </dd>
+                  </div>
+                )}
+                {localClient.gst_number && (
+                  <div>
+                    <dt className="text-muted text-[11px] mb-0.5">GST Number</dt>
+                    <dd className="font-mono text-foreground">{localClient.gst_number}</dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-muted text-[11px] mb-0.5">Status</dt>
                   <dd>
@@ -1303,6 +1317,28 @@ export default function ClientDetail({
               onChange={(e) => setEditForm((f) => ({ ...f, company: e.target.value }))}
               className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition"
             />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[12px] font-medium text-foreground mb-1.5">Phone</label>
+              <input
+                type="tel"
+                value={editForm.phone}
+                onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
+                placeholder="+91 98765 43210"
+                className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition"
+              />
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-foreground mb-1.5">GST Number</label>
+              <input
+                type="text"
+                value={editForm.gst_number}
+                onChange={(e) => setEditForm((f) => ({ ...f, gst_number: e.target.value }))}
+                placeholder="22AAAAA0000A1Z5"
+                className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent uppercase transition"
+              />
+            </div>
           </div>
           <div>
             <label className="block text-[12px] font-medium text-foreground mb-1.5">Status</label>
