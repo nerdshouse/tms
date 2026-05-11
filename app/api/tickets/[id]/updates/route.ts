@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb, getSessionClient } from "@/lib/firebase/helpers";
-import { notifyNewComment } from "@/lib/email/notifications";
+import { notifyNewComment, notifyClientReply } from "@/lib/email/notifications";
 import { logEvent } from "@/lib/log";
 import admin from "firebase-admin";
 
@@ -54,6 +54,24 @@ export async function POST(
       clientEmail: ticketData.client_email,
       authorName:  client.name,
       message:     message.trim(),
+    }).catch(console.error);
+  }
+
+  // Notify assignee when client posts a comment (non-blocking)
+  if (authorType === "client" && ticketData?.assignee_id) {
+    adminDb.collection("team_members").doc(ticketData.assignee_id).get().then((mSnap) => {
+      if (!mSnap.exists) return;
+      const assigneeEmail = mSnap.data()!.email as string | undefined;
+      const assigneeName  = mSnap.data()!.name as string;
+      if (!assigneeEmail) return;
+      notifyClientReply({
+        ticketId:      params.id,
+        title:         ticketData.title ?? "",
+        assigneeName,
+        assigneeEmail,
+        clientName:    ticketData.client_name ?? "",
+        message:       message.trim(),
+      });
     }).catch(console.error);
   }
 

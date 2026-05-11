@@ -43,6 +43,39 @@ export async function notifyTicketAssigned(params: {
   });
 }
 
+/** Notify an assigned team member that the client has replied on a ticket. */
+export async function notifyClientReply(params: {
+  ticketId: string;
+  title: string;
+  assigneeName: string;
+  assigneeEmail: string;
+  clientName: string;
+  message: string;
+}) {
+  if (!params.assigneeEmail) return;
+  const url = `${APP_URL}/tickets/${params.ticketId}`;
+
+  await getResend().emails.send({
+    from: FROM,
+    to: params.assigneeEmail,
+    subject: `Client replied on: ${params.title}`,
+    html: `
+      <div style="font-family: Inter, sans-serif; max-width: 560px; color: #1a1a1a;">
+        <h2 style="margin-bottom: 4px;">Client Replied on a Ticket</h2>
+        <p style="color: #6b7280; margin-top: 0;">Hi ${params.assigneeName},</p>
+        <p style="font-size: 14px;"><strong>${params.clientName}</strong> has replied on a ticket assigned to you: <strong>"${params.title}"</strong></p>
+        <blockquote style="border-left: 3px solid #3b82f6; margin: 16px 0; padding: 10px 16px; background: #eff6ff; border-radius: 0 8px 8px 0; font-size: 13px; color: #374151; white-space: pre-wrap;">
+          ${params.message.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+        </blockquote>
+        <a href="${url}" style="display: inline-block; background: #4a4fe0; color: white; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 500;">
+          View &amp; Reply →
+        </a>
+        <p style="font-size: 12px; color: #9ca3af; margin-top: 24px;">Nerdshouse Technologies LLP</p>
+      </div>
+    `,
+  });
+}
+
 /** Notify a client that the Nerdshouse team has posted a new comment on their ticket. */
 export async function notifyNewComment(params: {
   ticketId: string;
