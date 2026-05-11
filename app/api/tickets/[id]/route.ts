@@ -11,12 +11,19 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   const me = await getSessionClient();
-  if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const snap = await adminDb.collection("tickets").doc(params.id).get();
   if (!snap.exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const title = snap.data()!.title as string;
+  const ticketData = snap.data()!;
+
+  // Clients can only delete their own tickets
+  if (!me.is_admin && ticketData.client_id !== me.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const title = ticketData.title as string;
 
   // Delete ticket + all its updates in a batch
   const updatesSnap = await adminDb
@@ -46,87 +53,104 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   const me = await getSessionClient();
-  if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { status, assignee_id, due_date } = await request.json() as {
-    status: Status;
-    assignee_id?: string | null;
-    due_date?: string | null;
-  };
-
-  const ticketRef = adminDb.collection("tickets").doc(params.id);
+  const ticketRef  = adminDb.collection("tickets").doc(params.id);
   const ticketSnap = await ticketRef.get();
   if (!ticketSnap.exists) return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
 
   const ticketData = ticketSnap.data()!;
 
-  // Look up assignee name/initials for denormalization
-  let assigneeName: string | null = null;
-  let assigneeInitials: string | null = null;
-  let assigneeEmail: string | null = null;
-  if (assignee_id) {
-    const mSnap = await adminDb.collection("team_members").doc(assignee_id).get();
-    if (mSnap.exists) {
-      assigneeName     = mSnap.data()!.name;
-      assigneeInitials = mSnap.data()!.avatar_initials;
-      assigneeEmail    = mSnap.data()!.email ?? null;
+  // Clients can only edit their own tickets
+  if (!me.is_admin && ticketData.client_id !== me.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await request.json() as {
+    status?: Status;
+    assignee_id?: string | null;
+    due_date?: string | null;
+    title?: string;
+    description?: string;
+    priority?: string;
+    type?: string;
+    module?: string;
+    page_url?: string | null;
+  };
+
+  const update: Record<string, unknown> = {
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  // Admin-only fields
+  if (me.is_admin) {
+    if (body.status !== undefined) update.status = body.status;
+    if (body.due_date !== undefined) update.due_date = body.due_date ?? null;
+
+    if (body.assignee_id !== undefined) {
+      let assigneeName: string | null = null;
+      let assigneeInitials: string | null = null;
+      let assigneeEmail: string | null = null;
+      if (body.assignee_id) {
+        const mSnap = await adminDb.collection("team_members").doc(body.assignee_id).get();
+        if (mSnap.exists) {
+          assigneeName     = mSnap.data()!.name;
+          assigneeInitials = mSnap.data()!.avatar_initials;
+          assigneeEmail    = mSnap.data()!.email ?? null;
+        }
+      }
+      update.assignee_id       = body.assignee_id ?? null;
+      update.assignee_name     = assigneeName;
+      update.assignee_initials = assigneeInitials;
+
+      const prevAssigneeId = ticketData.assignee_id ?? null;
+      if (body.assignee_id && body.assignee_id !== prevAssigneeId && assigneeEmail) {
+        notifyTicketAssigned({
+          ticketId:      params.id,
+          title:         ticketData.title,
+          assigneeName:  assigneeName ?? "",
+          assigneeEmail: assigneeEmail,
+          clientName:    ticketData.client_name ?? "",
+          priority:      ticketData.priority ?? "",
+          type:          ticketData.type ?? "",
+        }).catch(console.error);
+      }
+    }
+
+    if (body.status !== undefined && body.status !== ticketData.status) {
+      sendStatusChangedEmail({
+        ticketId:    params.id,
+        title:       ticketData.title,
+        newStatus:   body.status,
+        clientName:  ticketData.client_name ?? "",
+        clientEmail: ticketData.client_email ?? "",
+      }).catch(console.error);
+      logEvent({
+        action_type: "ticket_status_changed",
+        detail:      `"${ticketData.title}" → ${body.status}`,
+        entity_id:   params.id,
+        entity_type: "ticket",
+        user_id:     me.id,
+        user_name:   me.name,
+      }).catch(console.error);
     }
   }
 
-  const prevAssigneeId = ticketData.assignee_id ?? null;
-
-  const update: Record<string, unknown> = {
-    status,
-    updated_at: admin.firestore.FieldValue.serverTimestamp(),
-  };
-  if (assignee_id !== undefined) {
-    update.assignee_id       = assignee_id ?? null;
-    update.assignee_name     = assigneeName;
-    update.assignee_initials = assigneeInitials;
-  }
-  if (due_date !== undefined) {
-    update.due_date = due_date ?? null;
-  }
+  // Client-editable fields (admin can also edit these)
+  if (body.title       !== undefined) update.title       = body.title.trim();
+  if (body.description !== undefined) update.description = body.description.trim();
+  if (body.priority    !== undefined) update.priority    = body.priority;
+  if (body.type        !== undefined) update.type        = body.type;
+  if (body.module      !== undefined) update.module      = body.module;
+  if (body.page_url    !== undefined) update.page_url    = body.page_url?.trim() || null;
+  if (!me.is_admin && body.due_date !== undefined) update.due_date = body.due_date ?? null;
 
   await ticketRef.update(update);
 
-  // Notify assignee if they were just assigned (non-blocking)
-  if (assignee_id && assignee_id !== prevAssigneeId && assigneeEmail) {
-    notifyTicketAssigned({
-      ticketId:      params.id,
-      title:         ticketData.title,
-      assigneeName:  assigneeName ?? "",
-      assigneeEmail: assigneeEmail,
-      clientName:    ticketData.client_name ?? "",
-      priority:      ticketData.priority ?? "",
-      type:          ticketData.type ?? "",
-    }).catch(console.error);
-  }
-
-  // Notify client of status change (non-blocking)
-  sendStatusChangedEmail({
-    ticketId:    params.id,
-    title:       ticketData.title,
-    newStatus:   status,
-    clientName:  ticketData.client_name ?? "",
-    clientEmail: ticketData.client_email ?? "",
-  }).catch(console.error);
-
-  // Audit logs (non-blocking)
-  if (status !== ticketData.status) {
-    logEvent({
-      action_type: "ticket_status_changed",
-      detail:      `"${ticketData.title}" → ${status}`,
-      entity_id:   params.id,
-      entity_type: "ticket",
-      user_id:     me.id,
-      user_name:   me.name,
-    }).catch(console.error);
-  }
-  if (assignee_id !== undefined && assignee_id !== prevAssigneeId) {
+  if (me.is_admin && body.assignee_id !== undefined && body.assignee_id !== (ticketData.assignee_id ?? null)) {
     logEvent({
       action_type: "ticket_assigned",
-      detail:      `"${ticketData.title}" assigned to ${assigneeName ?? "nobody"}`,
+      detail:      `"${ticketData.title}" assigned to ${update.assignee_name ?? "nobody"}`,
       entity_id:   params.id,
       entity_type: "ticket",
       user_id:     me.id,
@@ -134,6 +158,5 @@ export async function PATCH(
     }).catch(console.error);
   }
 
-  const updated = { id: params.id, ...ticketData, ...update };
-  return NextResponse.json(updated);
+  return NextResponse.json({ ok: true, id: params.id });
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Loader2, Send, Paperclip, Trash2, AlertTriangle } from "lucide-react";
+import { ChevronLeft, Loader2, Send, Paperclip, Trash2, AlertTriangle, Pencil } from "lucide-react";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { PriorityBadge, TypeBadge } from "@/components/ui/Badges";
 import { formatIST, formatISTShort, formatDate } from "@/lib/utils";
@@ -36,6 +36,19 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
   const [deleting, setDeleting] = useState(false);
   const [localUpdates, setLocalUpdates] = useState(updates);
   const [localTicket, setLocalTicket] = useState(ticket);
+
+  // Client edit state
+  const isOwner = !currentClient.is_admin && localTicket.client_id === currentClient.id;
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title:       ticket.title,
+    description: ticket.description,
+    priority:    ticket.priority,
+    type:        ticket.type,
+    due_date:    ticket.due_date ?? "",
+    page_url:    ticket.page_url ?? "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Live activity feed: append new updates as they arrive
   useRealtime<TicketUpdate>({
@@ -124,6 +137,34 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
     router.push("/");
   }
 
+  async function handleClientEdit(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingEdit(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/tickets/${ticket.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title:       editForm.title,
+          description: editForm.description,
+          priority:    editForm.priority,
+          type:        editForm.type,
+          due_date:    editForm.due_date || null,
+          page_url:    editForm.page_url || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+      setLocalTicket((t) => ({ ...t, ...editForm, due_date: editForm.due_date || null, page_url: editForm.page_url || null }));
+      setEditOpen(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-5">
@@ -131,29 +172,37 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
           <ChevronLeft size={14} />
           Back to requests
         </Link>
-        {currentClient.is_admin && (
-          !confirmDelete ? (
+        <div className="flex items-center gap-2">
+          {/* Edit button — admin or ticket owner */}
+          {(currentClient.is_admin || isOwner) && !confirmDelete && (
             <button
-              onClick={() => setConfirmDelete(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition"
+              onClick={() => { setEditForm({ title: localTicket.title, description: localTicket.description, priority: localTicket.priority, type: localTicket.type, due_date: localTicket.due_date ?? "", page_url: localTicket.page_url ?? "" }); setEditOpen((v) => !v); setError(""); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-muted border border-border rounded-lg hover:bg-gray-50 hover:text-foreground transition"
             >
-              <Trash2 size={12} /> Delete Request
+              <Pencil size={12} /> Edit
             </button>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
-              <AlertTriangle size={12} className="text-red-600" />
-              <span className="text-[12px] text-red-700 font-medium">Delete this request?</span>
+          )}
+          {/* Delete button — admin or ticket owner */}
+          {(currentClient.is_admin || isOwner) && (
+            !confirmDelete ? (
               <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="text-[12px] font-semibold text-red-600 hover:text-red-800 disabled:opacity-50"
+                onClick={() => { setConfirmDelete(true); setEditOpen(false); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition"
               >
-                {deleting ? "Deleting…" : "Yes, delete"}
+                <Trash2 size={12} /> Delete
               </button>
-              <button onClick={() => setConfirmDelete(false)} className="text-[12px] text-muted hover:text-foreground">Cancel</button>
-            </div>
-          )
-        )}
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
+                <AlertTriangle size={12} className="text-red-600" />
+                <span className="text-[12px] text-red-700 font-medium">Delete this request?</span>
+                <button onClick={handleDelete} disabled={deleting} className="text-[12px] font-semibold text-red-600 hover:text-red-800 disabled:opacity-50">
+                  {deleting ? "Deleting…" : "Yes, delete"}
+                </button>
+                <button onClick={() => setConfirmDelete(false)} className="text-[12px] text-muted hover:text-foreground">Cancel</button>
+              </div>
+            )
+          )}
+        </div>
       </div>
 
       <div className="flex gap-6">
@@ -179,6 +228,67 @@ export default function TicketDetail({ ticket, updates, currentClient, teamMembe
             </div>
             <p className="text-[13px] text-muted leading-relaxed whitespace-pre-wrap">{localTicket.description}</p>
           </div>
+
+          {/* Inline edit form */}
+          {editOpen && (
+            <form onSubmit={currentClient.is_admin ? handleAdminUpdate as unknown as React.FormEventHandler : handleClientEdit} className="bg-card border border-accent/30 rounded-xl p-5 mb-4 space-y-4">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-[13px] font-semibold text-foreground">Edit Request</h3>
+                <button type="button" onClick={() => setEditOpen(false)} className="text-muted hover:text-foreground transition-colors text-[12px]">Cancel</button>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-muted mb-1">Title <span className="text-red-500">*</span></label>
+                <input type="text" required value={editForm.title}
+                  onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+                  className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-muted mb-1">Description <span className="text-red-500">*</span></label>
+                <textarea required rows={4} value={editForm.description}
+                  onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+                  className="w-full px-3 py-2 text-[13px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition resize-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-muted mb-1">Priority</label>
+                  <select value={editForm.priority} onChange={(e) => setEditForm((f) => ({ ...f, priority: e.target.value as import("@/types").Priority }))}
+                    className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition">
+                    <option value="P0">P0 — Critical</option>
+                    <option value="P1">P1 — High</option>
+                    <option value="P2">P2 — Normal</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-muted mb-1">Type</label>
+                  <select value={editForm.type} onChange={(e) => setEditForm((f) => ({ ...f, type: e.target.value as import("@/types").TicketType }))}
+                    className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition">
+                    <option value="New">New</option>
+                    <option value="Existing">Existing</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-muted mb-1">Due Date</label>
+                  <input type="date" value={editForm.due_date}
+                    onChange={(e) => setEditForm((f) => ({ ...f, due_date: e.target.value }))}
+                    className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-muted mb-1">Page URL</label>
+                  <input type="url" placeholder="https://…" value={editForm.page_url}
+                    onChange={(e) => setEditForm((f) => ({ ...f, page_url: e.target.value }))}
+                    className="w-full px-2.5 py-1.5 text-[12px] border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition" />
+                </div>
+              </div>
+              {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>}
+              <button type="submit" disabled={savingEdit}
+                className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition disabled:opacity-60">
+                {savingEdit && <Loader2 size={13} className="animate-spin" />}
+                {savingEdit ? "Saving…" : "Save Changes"}
+              </button>
+            </form>
+          )}
 
           {/* Attachments */}
           {localTicket.attachments && localTicket.attachments.length > 0 && (
