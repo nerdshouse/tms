@@ -44,5 +44,18 @@ service cloud.firestore {
       allow read:  if request.auth != null;
       allow write: if isAdmin();
     }
+
+    // projects hours sub-collection — mirrors project visibility
+    match /projects/{projectId}/hours/{hourId} {
+      allow read:  if request.auth != null &&
+                     (isAdmin() ||
+                      get(/databases/$(database)/documents/projects/$(projectId)).data.client_id == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    // settings — admin read/write only
+    match /settings/{docId} {
+      allow read, write: if isAdmin();
+    }
   }
 }
