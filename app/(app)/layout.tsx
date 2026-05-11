@@ -20,8 +20,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     adminDb.collection("tickets").select("project_id").get(),
   ];
 
-  if (!client.is_admin && client.poc_id) {
-    queries.push(adminDb.collection("team_members").doc(client.poc_id).get());
+  // Resolve poc_id — contacts inherit it from their parent client doc
+  let resolvedPocId = client.poc_id ?? null;
+  if (!client.is_admin && client.is_contact && client.parent_client_id && !resolvedPocId) {
+    const parentSnap = await adminDb.collection("clients").doc(client.parent_client_id).get();
+    if (parentSnap.exists) resolvedPocId = parentSnap.data()!.poc_id ?? null;
+  }
+
+  if (!client.is_admin && resolvedPocId) {
+    queries.push(adminDb.collection("team_members").doc(resolvedPocId).get());
   }
 
   const results = await Promise.all(queries);
@@ -42,7 +49,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   let poc: TeamMember | null = null;
-  if (!client.is_admin && client.poc_id && results[2]) {
+  if (!client.is_admin && resolvedPocId && results[2]) {
     const pocSnap = results[2] as FirebaseFirestore.DocumentSnapshot;
     if (pocSnap.exists) poc = docToTeamMember(pocSnap);
   }

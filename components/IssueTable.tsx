@@ -172,10 +172,11 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
             <tr className="border-b border-border bg-gray-50/60">
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-24">ID</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide">Title</th>
-              {isAdmin && (
+              {project && <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide">Description</th>}
+              {isAdmin && !project && (
                 <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-28">Client</th>
               )}
-              <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-32">Project</th>
+              {!project && <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-32">Project</th>}
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-24">Type</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-16">Priority</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted text-[11px] uppercase tracking-wide w-28">Status</th>
@@ -187,7 +188,7 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 10 : 9} className="px-4 py-12 text-center text-muted text-[13px]">
+                <td colSpan={project ? 9 : isAdmin ? 10 : 9} className="px-4 py-12 text-center text-muted text-[13px]">
                   No issues found.
                 </td>
               </tr>
@@ -204,10 +205,15 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
                   <td className="px-4 py-3">
                     <span className="font-medium text-foreground line-clamp-1">{ticket.title}</span>
                   </td>
-                  {isAdmin && (
+                  {project && (
+                    <td className="px-4 py-3 text-muted max-w-[220px]">
+                      <span className="line-clamp-2 text-[12px]">{ticket.description || "—"}</span>
+                    </td>
+                  )}
+                  {isAdmin && !project && (
                     <td className="px-4 py-3 text-muted">{ticket.clients?.name ?? "—"}</td>
                   )}
-                  <td className="px-4 py-3">
+                  {!project && <td className="px-4 py-3">
                     {ticket.projects ? (
                       <div className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: ticket.projects.color }} />
@@ -216,7 +222,7 @@ export default function IssueTable({ tickets: initialTickets, isAdmin, initialSt
                     ) : (
                       <span className="text-muted">—</span>
                     )}
-                  </td>
+                  </td>}
                   <td className="px-4 py-3"><TypeBadge type={ticket.type} /></td>
                   <td className="px-4 py-3"><PriorityBadge priority={ticket.priority} /></td>
                   <td className="px-4 py-3"><StatusIcon status={ticket.status as Status} showLabel /></td>
